@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <style>
+    .p { fill: #2a78d6; fill-opacity: .16; stroke: #2a78d6; stroke-width: 2 }
+    .n { fill: #2a78d6 }
+    .e { stroke: #2a78d6; stroke-width: 2; fill: none }
+    @media (prefers-color-scheme: dark) {
+      .p { fill: #3987e5; fill-opacity: .2; stroke: #3987e5 }
+      .n { fill: #3987e5 } .e { stroke: #3987e5 }
+    }
+  </style>
+  <!-- three stacked layers, sparse on top, dense at the bottom -->
+  <path class="p" d="M4 18 L44 18 L60 30 L20 30 Z" />
+  <path class="p" d="M4 34 L44 34 L60 46 L20 46 Z" />
+  <g class="e"><path d="M16 25 L46 23" /></g>
+  <circle class="n" cx="16" cy="25" r="3.4" />
+  <circle class="n" cx="46" cy="23" r="3.4" />
+  <g class="e"><path d="M14 41 L30 44 L48 39 M30 44 L34 38" /></g>
+  <circle class="n" cx="14" cy="41" r="3" />
+  <circle class="n" cx="30" cy="44" r="3" />
+  <circle class="n" cx="48" cy="39" r="3" />
+  <circle class="n" cx="34" cy="38" r="3" />
+</svg>
