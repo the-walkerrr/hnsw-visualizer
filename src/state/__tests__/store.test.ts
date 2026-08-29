@@ -193,21 +193,6 @@ describe('lesson isolation', () => {
   })
 })
 
-describe('explicit lesson selection', () => {
-  it('re-picking the current lesson bumps the epoch so its setup re-applies', () => {
-    const s = initialState()
-    const again = reducer(s, { type: 'setLesson', lesson: s.lesson })
-    expect(again.lesson).toBe(s.lesson)
-    expect(again.lessonStep).toBe(0)
-    expect(again.lessonEpoch).toBe(s.lessonEpoch + 1)
-  })
-
-  it('stepping within a lesson does not bump the epoch', () => {
-    const s = initialState()
-    expect(reducer(s, { type: 'lessonStep', delta: 1 }).lessonEpoch).toBe(s.lessonEpoch)
-  })
-})
-
 describe('stale ids from a mid-trace snapshot', () => {
   it('dragging a node that the committed graph no longer has', () => {
     const base = initialState()

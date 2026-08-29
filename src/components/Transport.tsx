@@ -1,24 +1,18 @@
 import { useApp, useDispatch } from '../state/store'
 
 export function Transport() {
-  const { trace, step, playing, speed, granularity } = useApp()
+  const { trace, step, playing } = useApp()
   const dispatch = useDispatch()
   const total = trace?.steps.length ?? 0
   const atEnd = total === 0 || step >= total - 1
+  const label = trace ? trace.title : 'No replay yet — run a sample action or click the canvas'
 
   return (
     <div className="transport">
       <button
         className="iconbtn"
-        title="Jump to the first step"
-        disabled={!trace}
-        onClick={() => dispatch({ type: 'seek', index: 0 })}
-      >
-        ⏮
-      </button>
-      <button
-        className="iconbtn"
         title="Previous step (←)"
+        aria-label="Previous step"
         disabled={!trace || step === 0}
         onClick={() => dispatch({ type: 'stepBy', delta: -1 })}
       >
@@ -27,6 +21,7 @@ export function Transport() {
       <button
         className="iconbtn primary"
         title={playing ? 'Pause (space)' : 'Play (space)'}
+        aria-label={playing ? 'Pause' : atEnd ? 'Replay' : 'Play'}
         disabled={!trace}
         onClick={() => dispatch({ type: playing ? 'pause' : 'play' })}
       >
@@ -35,6 +30,7 @@ export function Transport() {
       <button
         className="iconbtn"
         title="Next step (→)"
+        aria-label="Next step"
         disabled={!trace || atEnd}
         onClick={() => dispatch({ type: 'stepBy', delta: 1 })}
       >
@@ -43,11 +39,16 @@ export function Transport() {
       <button
         className="iconbtn"
         title="Jump to the end"
+        aria-label="Jump to the last step"
         disabled={!trace}
         onClick={() => dispatch({ type: 'seek', index: total - 1 })}
       >
         ⏭
       </button>
+
+      <span className="transport-label" title={label}>
+        {label}
+      </span>
 
       <input
         className="scrub"
@@ -60,42 +61,13 @@ export function Transport() {
         onChange={(e) => dispatch({ type: 'seek', index: Number(e.target.value) })}
       />
       <span className="chip mono">
-        {total ? step + 1 : 0}/{total}
+        step {total ? step + 1 : 0}/{total}
       </span>
-
-      <div className="segmented" role="group" aria-label="Step detail">
-        {(['coarse', 'fine'] as const).map((g) => (
-          <button
-            key={g}
-            aria-pressed={granularity === g}
-            title={
-              g === 'coarse'
-                ? 'Skip the per-neighbour bookkeeping steps'
-                : 'Show every single comparison'
-            }
-            onClick={() => dispatch({ type: 'setGranularity', g })}
-          >
-            {g}
-          </button>
-        ))}
-      </div>
-
-      <select
-        aria-label="Playback speed"
-        style={{ width: 'auto' }}
-        value={speed}
-        onChange={(e) => dispatch({ type: 'setSpeed', speed: Number(e.target.value) })}
-      >
-        {[1, 2, 3, 5, 8, 14].map((s) => (
-          <option key={s} value={s}>
-            {s}×
-          </option>
-        ))}
-      </select>
 
       <button
         className="iconbtn"
         title="Clear the trace and go back to the plain graph"
+        aria-label="Clear trace"
         disabled={!trace}
         onClick={() => dispatch({ type: 'closeTrace' })}
       >

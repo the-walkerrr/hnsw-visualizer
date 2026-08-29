@@ -19,8 +19,8 @@ export type Tool = 'search' | 'insert' | 'select'
 export type Granularity = 'coarse' | 'fine'
 export type RightTab = 'build' | 'params' | 'code' | 'node' | 'metrics' | 'lab'
 
-/** Declarative operations. Lessons and buttons both emit these, so a lesson can
- *  put the app into any state without reaching into component internals. */
+/** Declarative operations. Guide examples and controls both emit these, so the
+ *  learn page can put the app into any state without reaching into component internals. */
 export type ScriptOp =
   | { t: 'clear' }
   | { t: 'preset'; id: PresetId; n: number; seed?: number; append?: boolean }
@@ -61,12 +61,6 @@ export interface AppState {
   deleteMode: 'soft' | 'hard'
   updateMode: 'reinsert' | 'in-place'
   rightTab: RightTab
-  lesson: number
-  lessonStep: number
-  /** Bumped by an explicit lesson pick, so choosing the lesson you are already
-   *  on still re-applies its setup instead of silently doing nothing. */
-  lessonEpoch: number
-  lessonOpen: boolean
   dataset: { id: PresetId; n: number; seed: number }
   log: LogEntry[]
   logSeq: number
@@ -92,9 +86,6 @@ export type Action =
   | { type: 'setDeleteMode'; mode: 'soft' | 'hard' }
   | { type: 'setUpdateMode'; mode: 'reinsert' | 'in-place' }
   | { type: 'setRightTab'; tab: RightTab }
-  | { type: 'setLesson'; lesson: number; step?: number }
-  | { type: 'lessonStep'; delta: number }
-  | { type: 'toggleLessonPanel' }
   | { type: 'deleteNode'; id: NodeId; mode: 'soft' | 'hard' }
   | { type: 'restoreNode'; id: NodeId }
   | { type: 'moveNode'; id: NodeId; to: Vec }
@@ -122,10 +113,6 @@ export function initialState(): AppState {
     deleteMode: 'soft',
     updateMode: 'reinsert',
     rightTab: 'build',
-    lesson: 0,
-    lessonStep: 0,
-    lessonEpoch: 0,
-    lessonOpen: true,
     dataset,
     log: [],
     logSeq: 0,
@@ -339,7 +326,7 @@ export function reducer(state: AppState, action: Action): AppState {
     case 'toggleGhost':
       return { ...state, ghostLayers: !state.ghostLayers }
     case 'select':
-      return { ...state, selected: action.id, rightTab: action.id === null ? state.rightTab : 'node' }
+      return { ...state, selected: action.id }
     case 'setTool':
       return { ...state, tool: action.tool }
     case 'setK':
@@ -352,18 +339,6 @@ export function reducer(state: AppState, action: Action): AppState {
       return { ...state, updateMode: action.mode }
     case 'setRightTab':
       return { ...state, rightTab: action.tab }
-    case 'setLesson':
-      return {
-        ...state,
-        lesson: action.lesson,
-        lessonStep: action.step ?? 0,
-        lessonEpoch: state.lessonEpoch + 1,
-        lessonOpen: true,
-      }
-    case 'lessonStep':
-      return { ...state, lessonStep: Math.max(0, state.lessonStep + action.delta) }
-    case 'toggleLessonPanel':
-      return { ...state, lessonOpen: !state.lessonOpen }
     case 'deleteNode':
       return applyDelete(state, action.id, action.mode)
     // The canvas draws mid-trace *snapshots*, so a node the user can see and

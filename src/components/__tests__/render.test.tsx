@@ -15,7 +15,6 @@ import {
 import { CanvasToolbar } from '../CanvasToolbar'
 import { Explainer } from '../Explainer'
 import { GraphCanvas } from '../GraphCanvas'
-import { LessonPanel } from '../LessonPanel'
 import { Transport } from '../Transport'
 import { BuildPanel } from '../panels/BuildPanel'
 import { CodePanel } from '../panels/CodePanel'
@@ -86,7 +85,14 @@ describe('render smoke', () => {
   it('the whole app renders', () => {
     const html = renderToStaticMarkup(<StoreLess />)
     expect(html).toContain('HNSW Explorer')
-    expect(html).toContain('all layers')
+    expect(html).toContain('Learn HNSW')
+    expect(html).toContain('Open playground')
+  })
+
+  it('shows beginner guidance in the setup and replay surfaces', () => {
+    expect(render(initialState(), <BuildPanel />)).toContain('Quick start')
+    expect(render(initialState(), <Transport />)).toContain('No replay yet')
+    expect(render(initialState(), <Explainer />)).toContain('Open Stats to compare HNSW with exact scan')
   })
 
   it.each(SCENARIOS)('canvas + transport + explainer render: %s', (_name, state) => {
@@ -143,17 +149,6 @@ describe('render smoke', () => {
       expect(render({ ...s, rightTab: tab }, make()).length, tab).toBeGreaterThan(0)
     }
     expect(render(s, <GraphCanvas />)).toContain('svg')
-  })
-
-  it('every lesson step renders its panel content', () => {
-    let s = initialState()
-    for (let lesson = 0; lesson < 10; lesson++) {
-      for (let step = 0; step < 4; step++) {
-        s = { ...s, lesson, lessonStep: step }
-        const html = render(s, <LessonPanel />)
-        expect(html, `lesson ${lesson} step ${step}`).toContain('Lesson')
-      }
-    }
   })
 })
 

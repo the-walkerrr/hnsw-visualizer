@@ -358,6 +358,7 @@ export function GraphCanvas() {
                 selected={state.selected}
                 labels={graph.nodes.size <= proj.labelLimit}
                 dragging={drag}
+                zoom={cam.z}
               />
               {step?.vis.query &&
                 step.vis.queryLabel === 'q' &&
@@ -367,7 +368,7 @@ export function GraphCanvas() {
             </g>
           )
         })}
-        {drag && <DragGhost graph={graph} drag={drag} proj={proj} layer={drag.layer} />}
+        {drag && <DragGhost graph={graph} drag={drag} proj={proj} layer={drag.layer} zoom={cam.z} />}
         </g>
       </svg>
 
@@ -594,6 +595,7 @@ function Nodes({
   selected,
   labels,
   dragging,
+  zoom,
 }: {
   graph: Graph
   layer: number
@@ -603,10 +605,12 @@ function Nodes({
   selected: NodeId | null
   labels: boolean
   dragging: { id: NodeId; at: Vec; layer: number } | null
+  zoom: number
 }) {
   const v = step?.vis
   const onLayer = [...graph.nodes.values()].filter((n) => n.level >= layer)
   const r = proj.nodeR
+  const invZoom = 1 / Math.max(zoom, 0.0001)
   return (
     <g>
       {onLayer.map((n) => {
@@ -666,74 +670,73 @@ function Nodes({
 
         return (
           <g key={n.id}>
-            {inW && (
-              <circle
-                cx={x}
-                cy={y}
-                r={radius + 3.4}
-                fill="none"
-                stroke="var(--c-w)"
-                strokeWidth={1.6}
-                vectorEffect="non-scaling-stroke"
-              />
-            )}
-            {isEntry && (
-              <circle
-                cx={x}
-                cy={y}
-                r={radius + 6}
-                fill="none"
-                stroke="var(--c-entry)"
-                strokeWidth={2.2}
-                vectorEffect="non-scaling-stroke"
-              />
-            )}
-            {isFocus && (
-              <circle
-                cx={x}
-                cy={y}
-                r={radius + 8.5}
-                fill="none"
-                stroke="var(--c-query)"
-                strokeWidth={1.6}
-                strokeDasharray="3 3"
-                vectorEffect="non-scaling-stroke"
-              />
-            )}
-            {selected === n.id && (
-              <circle
-                cx={x}
-                cy={y}
-                r={radius + 5}
-                fill="none"
-                stroke="var(--text-1)"
-                strokeWidth={1.4}
-                vectorEffect="non-scaling-stroke"
-              />
-            )}
-            <circle
-              cx={x}
-              cy={y}
-              r={radius}
-              fill={n.deleted ? 'url(#tomb)' : fill}
-              stroke={stroke}
-              strokeWidth={width}
-              strokeDasharray={n.deleted ? '3 2' : undefined}
-              opacity={n.deleted ? 0.85 : 1}
-              vectorEffect="non-scaling-stroke"
-            />
-            {showLabel && (
-              <text
-                x={x + radius + 3}
-                y={y - radius - 1}
-                fontSize={proj.stacked ? 13 : 11}
-                fontFamily="var(--mono)"
-                fill={isCurrent || isResult || isFocus ? 'var(--text-1)' : 'var(--text-2)'}
-                fontWeight={isCurrent || isResult || isFocus || isEntry ? 600 : 400}
-              >
-                {n.label}
-              </text>
-            )}
+            <g transform={`translate(${x} ${y})`}>
+              <g transform={`scale(${invZoom})`}>
+                {inW && (
+                  <circle
+                    cx={0}
+                    cy={0}
+                    r={radius + 3.4}
+                    fill="none"
+                    stroke="var(--c-w)"
+                    strokeWidth={1.6}
+                  />
+                )}
+                {isEntry && (
+                  <circle
+                    cx={0}
+                    cy={0}
+                    r={radius + 6}
+                    fill="none"
+                    stroke="var(--c-entry)"
+                    strokeWidth={2.2}
+                  />
+                )}
+                {isFocus && (
+                  <circle
+                    cx={0}
+                    cy={0}
+                    r={radius + 8.5}
+                    fill="none"
+                    stroke="var(--c-query)"
+                    strokeWidth={1.6}
+                    strokeDasharray="3 3"
+                  />
+                )}
+                {selected === n.id && (
+                  <circle
+                    cx={0}
+                    cy={0}
+                    r={radius + 5}
+                    fill="none"
+                    stroke="var(--text-1)"
+                    strokeWidth={1.4}
+                  />
+                )}
+                <circle
+                  cx={0}
+                  cy={0}
+                  r={radius}
+                  fill={n.deleted ? 'url(#tomb)' : fill}
+                  stroke={stroke}
+                  strokeWidth={width}
+                  strokeDasharray={n.deleted ? '3 2' : undefined}
+                  opacity={n.deleted ? 0.85 : 1}
+                />
+                {showLabel && (
+                  <text
+                    x={radius + 3}
+                    y={-radius - 1}
+                    fontSize={proj.stacked ? 13 : 11}
+                    fontFamily="var(--mono)"
+                    fill={isCurrent || isResult || isFocus ? 'var(--text-1)' : 'var(--text-2)'}
+                    fontWeight={isCurrent || isResult || isFocus || isEntry ? 600 : 400}
+                  >
+                    {n.label}
+                  </text>
+                )}
+              </g>
+            </g>
           </g>
         )
       })}
@@ -769,16 +772,19 @@ function DragGhost({
   drag,
   proj,
   layer,
+  zoom,
 }: {
   graph: Graph
   drag: { id: NodeId; at: Vec; layer: number }
   proj: Projector
   layer: number
+  zoom: number
 }) {
   const n = graph.nodes.get(drag.id)
   if (!n) return null
   const a = proj.to(n.vec, layer)
   const b = proj.to(drag.at, layer)
+  const invZoom = 1 / Math.max(zoom, 0.0001)
   return (
     <g>
       <line
@@ -790,7 +796,11 @@ function DragGhost({
         strokeWidth={1.5}
         strokeDasharray="4 3"
       />
-      <circle cx={b[0]} cy={b[1]} r={proj.nodeR + 2} fill="none" stroke="var(--c-query)" strokeWidth={2} />
+      <g transform={`translate(${b[0]} ${b[1]})`}>
+        <g transform={`scale(${invZoom})`}>
+          <circle cx={0} cy={0} r={proj.nodeR + 2} fill="none" stroke="var(--c-query)" strokeWidth={2} />
+        </g>
+      </g>
     </g>
   )
 }

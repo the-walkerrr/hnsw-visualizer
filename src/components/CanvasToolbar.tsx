@@ -8,9 +8,7 @@ const LEGEND: Array<[string, string, string]> = [
   ['--c-current', 'now', 'the node whose neighbours are being scanned right now'],
   ['--c-cand', 'in C', 'a queued candidate, still to be expanded'],
   ['--c-w', 'in W', 'currently one of the ef best found (outer ring)'],
-  ['--c-visited', 'seen', 'visited — its distance has been computed'],
   ['--c-result', 'result', 'returned to the caller, or an edge just created'],
-  ['--c-reject', 'cut', 'a pruned candidate or a deleted edge'],
 ]
 
 export function CanvasToolbar() {
@@ -19,6 +17,10 @@ export function CanvasToolbar() {
   const { layer } = useShownLayer()
   const dispatch = useDispatch()
   const top = graph.entry === null ? 0 : graph.topLayer
+  const toolHint =
+    tool === 'insert'
+      ? 'Insert: click a spot to place a new vector there.'
+      : 'Search: click a spot to find its nearest stored neighbours.'
 
   return (
     <>
@@ -60,17 +62,29 @@ export function CanvasToolbar() {
       </div>
 
       <div className="canvas-overlay tr">
-        <div className="segmented" role="group" aria-label="Tool">
-          {(['search', 'insert', 'select'] as const).map((t) => (
+        <div className="tool-selector" role="group" aria-label="Tool">
+          {(['search', 'insert'] as const).map((t) => (
             <button
               key={t}
+              className={`tool-btn${tool === t ? ' active' : ''}`}
               aria-pressed={tool === t}
               onClick={() => dispatch({ type: 'setTool', tool: t })}
+              title={
+                t === 'search'
+                  ? 'Search: Click canvas to find nearest vectors'
+                  : 'Insert: Click canvas to add a new vector'
+              }
             >
-              {t}
+              <span className="tool-icon">
+                {t === 'search' ? '🔍' : '➕'}
+              </span>
+              <span className="tool-label">
+                {t === 'search' ? 'Search' : 'Insert'}
+              </span>
             </button>
           ))}
         </div>
+        <div className="toolbar-hint">{toolHint}</div>
       </div>
 
       <div className="canvas-overlay bl">
@@ -81,16 +95,6 @@ export function CanvasToolbar() {
               {label}
             </span>
           ))}
-          <span title="Soft-deleted: still in the graph, never returned">
-            <i
-              style={{
-                background: 'transparent',
-                border: '1.5px dashed var(--text-3)',
-                borderRadius: '50%',
-              }}
-            />
-            tombstone
-          </span>
         </div>
       </div>
     </>

@@ -51,64 +51,66 @@ export function ParamsPanel() {
   return (
     <div className="pane-scroll">
       <div className="note accent">
-        Changing anything that shapes the graph — M, the caps, ef<sub>construction</sub>, mL, the
-        metric or the selection rule — rebuilds the index from the same vectors in the same order,
-        so you are always comparing like with like.
+        These are the knobs that control how HNSW builds its graph. You don't need to touch these
+        to get started — the defaults are good. Change them to see how they affect performance.
+        <br /><br />
+        <strong>Note:</strong> Changing graph-shaping parameters (M, caps, efConstruction, mL,
+        metric) automatically rebuilds the index so you're always comparing apples to apples.
       </div>
 
-      <div className="section-title">Graph shape (rebuilds)</div>
+      <div className="section-title">Graph shape (rebuilds on change)</div>
       <Slider
         id="M"
-        label="M — edges per new node"
+        label="M — connections per new vector"
         value={params.M}
         min={2}
         max={24}
-        hint="How many neighbours a node links to when it is inserted. The single most consequential knob: bigger M means better recall, more memory, and slower builds. Real systems use 12–48; small values here keep the picture readable."
+        hint="How many connections each new vector makes when added. More connections = better search accuracy but uses more memory. The default (16) is a good balance for most uses."
         onChange={(M) =>
           set({ M, Mmax: M, Mmax0: M * 2, mL: 1 / Math.log(Math.max(M, 2)) })
         }
       />
       <Slider
         id="Mmax"
-        label="Mmax — degree cap above layer 0"
+        label="Mmax — max connections above layer 0"
         value={params.Mmax}
         min={params.M}
         max={32}
-        hint={`A node may accumulate more edges than M as later nodes link to it. When it goes over this cap its neighbourhood is re-selected from scratch. It cannot go below M = ${params.M}: Algorithm 1 shrinks a new node's *neighbours*, never the new node itself, so a cap under M would be violated the moment a node is inserted.`}
+        hint={`The maximum number of connections any vector can have (except at the base layer). When a vector gets too popular, its connections are pruned back to this limit. Cannot go below M = ${params.M}.`}
         onChange={(Mmax) => set({ Mmax })}
       />
       <Slider
         id="Mmax0"
-        label="Mmax0 — degree cap on layer 0"
+        label="Mmax0 — max connections at layer 0"
         value={params.Mmax0}
         min={params.M}
         max={64}
-        hint="Layer 0 holds every element and does all the fine-grained work, so it gets a bigger budget — conventionally 2M. It also dominates the index's memory footprint."
+        hint="The same connection limit, but for layer 0 — the base layer where every vector lives. It gets a higher limit because layer 0 does the most precise searching."
         onChange={(Mmax0) => set({ Mmax0 })}
       />
       <Slider
         id="efc"
-        label="efConstruction — beam width while building"
+        label="efConstruction — build quality"
         value={params.efConstruction}
         min={1}
         max={200}
-        hint="How many candidates each insertion considers before choosing its M edges. Higher = better graph, slower build, no extra memory or query cost. This is the cheapest quality win available."
+        hint="How hard the algorithm searches for the best connections when building the graph. Higher = better quality graph, but slower to build. This doesn't affect search speed at all."
         onChange={(efConstruction) => set({ efConstruction })}
       />
       <Slider
         id="mL"
-        label="mL — level decay"
+        label="mL — layer height probability"
         value={params.mL}
         min={0.1}
         max={2}
         step={0.05}
         format={(v) => v.toFixed(2)}
-        hint={`Controls how tall the index gets: P(level ≥ l) = e^(−l/mL). The paper's optimum is 1/ln(M) = ${(1 / Math.log(Math.max(params.M, 2))).toFixed(2)} for M = ${params.M}, which makes each layer about 1/M the size of the one below. Turn it up to see a needlessly tall index.`}
+        hint={`Controls how many layers the index has. The paper's formula (1/ln(M)) is the sweet spot — currently ${(1 / Math.log(Math.max(params.M, 2))).toFixed(2)} for M = ${params.M}. Change it to see what happens with too many or too few layers.`}
         onChange={(mL) => set({ mL })}
       />
       <div className="field">
         <div className="field-head">
-          <label htmlFor="metric">distance metric</label>
+          <label htmlFor="metric">Distance metric</label>
         </div>
         <select
           id="metric"
@@ -124,7 +126,7 @@ export function ParamsPanel() {
         <p className="hint">{METRIC_NOTE[params.metric]}</p>
       </div>
 
-      <div className="section-title">Neighbour selection (rebuilds)</div>
+      <div className="section-title">Neighbor selection (rebuilds on change)</div>
       <div className="field">
         <div className="segmented" role="group" aria-label="Selection rule">
           {(['heuristic', 'simple'] as const).map((r) => (
@@ -139,8 +141,8 @@ export function ParamsPanel() {
         </div>
         <p className="hint">
           {params.neighborRule === 'heuristic'
-            ? 'Algorithm 4: keep a candidate only if it is closer to the node than to any neighbour already kept. Spreads edges across directions and creates the long-range links that make the graph navigable.'
-            : 'Algorithm 3: just take the M nearest. On clustered data this leaves whole regions unreachable — build a clustered dataset and compare the recall in the Lab tab.'}
+            ? 'Algorithm 4: keep a candidate only if it is closer to the node than to any already-chosen neighbor. Spreads edges in all directions and creates the long-range links that make the graph navigable.'
+            : 'Algorithm 3: just take the M nearest. On clustered data this leaves whole regions unreachable — try it to see the difference!'}
         </p>
       </div>
       <div className="checkline">
@@ -153,8 +155,8 @@ export function ParamsPanel() {
         <label htmlFor="extend">
           extendCandidates
           <span className="hint" style={{ display: 'block' }}>
-            Widen the candidate pool with the neighbours of the candidates. Helps only on extremely
-            clustered data; costs distance computations everywhere else.
+            Widen the candidate pool with the neighbors of candidates. Helps on very clustered data;
+            costs extra distance computations everywhere else.
           </span>
         </label>
       </div>
@@ -168,25 +170,25 @@ export function ParamsPanel() {
         <label htmlFor="keep">
           keepPrunedConnections
           <span className="hint" style={{ display: 'block' }}>
-            If the heuristic cannot fill M slots, top up with the closest rejects rather than leave
+            If the heuristic can't fill M slots, top up with the closest rejects rather than leave
             the node under-connected. Turn it off and watch nodes end up with too few edges.
           </span>
         </label>
       </div>
 
-      <div className="section-title">Query time (no rebuild)</div>
+      <div className="section-title">Query time (no rebuild needed)</div>
       <Slider
         id="efs"
-        label="efSearch — beam width while searching"
+        label="efSearch — accuracy dial"
         value={params.efSearch}
         min={1}
         max={200}
-        hint="The recall dial you can turn at runtime, per query. ef = 1 is a plain greedy walk that gets stuck; ef = 200 explores far more of layer 0 and costs proportionally more. Nothing about the graph changes."
+        hint="How wide the search beam is at query time. Low = fast but might miss results. High = slower but finds the true nearest neighbors. This is your accuracy dial — you can change it without rebuilding."
         onChange={(efSearch) => set({ efSearch })}
       />
       <Slider
         id="seed"
-        label="level RNG seed"
+        label="Level RNG seed"
         value={params.seed}
         min={1}
         max={200}
