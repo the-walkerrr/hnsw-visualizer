@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CanvasToolbar } from "./components/CanvasToolbar";
 import { Explainer } from "./components/Explainer";
 import { ExplanationPage } from "./components/ExplanationPage";
@@ -7,20 +7,26 @@ import { ThemeToggle } from "./components/ThemeToggle";
 import { Transport } from "./components/Transport";
 import { BuildPanel } from "./components/panels/BuildPanel";
 import { CodePanel } from "./components/panels/CodePanel";
+import { LabPanel } from "./components/panels/LabPanel";
 import { MetricsPanel } from "./components/panels/MetricsPanel";
+import { NodePanel } from "./components/panels/NodePanel";
+import { ParamsPanel } from "./components/panels/ParamsPanel";
 import { graphStats } from "./hnsw/metrics";
-import {
-  useApp,
-  useDispatch,
-  useViewGraph,
-  type RightTab,
-} from "./state/store";
+import { useApp, useDispatch, useViewGraph, type RightTab } from "./state/store";
 
 const TABS: Array<[RightTab, string, string]> = [
-  ["build", "Setup", "Build the graph and run operations"],
-  ["code", "Steps", "Follow the pseudocode step by step"],
-  ["metrics", "Stats", "See search cost and recall"],
+  ["build", "Build", "Choose a dataset and run an operation"],
+  ["params", "Tune", "Change graph and query parameters"],
+  ["code", "Trace", "Follow the executing pseudocode"],
+  ["node", "Inspect", "Inspect and modify a selected node"],
+  ["metrics", "Results", "Compare cost, recall, and graph structure"],
+  ["lab", "Lab", "Measure parameter trade-offs"],
 ];
+
+const PANELS: Record<RightTab, () => React.JSX.Element> = {
+  build: BuildPanel, params: ParamsPanel, code: CodePanel,
+  node: NodePanel, metrics: MetricsPanel, lab: LabPanel,
+};
 
 type Route = "home" | "learn" | "playground";
 
@@ -32,216 +38,106 @@ function routeFromLocation(): Route {
   return "home";
 }
 
+function Mark() {
+  return (
+    <svg className="brand-mark" viewBox="0 0 28 28" aria-hidden="true">
+      <path d="M5 20 10 7l8 4 5 10M5 20l13-9M10 7l13 14" />
+      <circle cx="5" cy="20" r="2.3" /><circle cx="10" cy="7" r="2.3" />
+      <circle cx="18" cy="11" r="2.3" /><circle cx="23" cy="21" r="2.3" />
+    </svg>
+  );
+}
+
+function Home({ navigate, onOpenPlayground }: { navigate: (route: Route) => void; onOpenPlayground: () => void }) {
+  return (
+    <main className="landing-page">
+      <section className="landing-hero">
+        <div className="landing-copy">
+          <p className="eyebrow">Interactive algorithm field guide</p>
+          <h2>See how HNSW searches.</h2>
+          <p className="hero-sub">Build a hierarchical graph, place a query, and follow every hop from the entry point to the nearest neighbors. Then change the index and measure what it costs.</p>
+          <div className="landing-actions">
+            <a className="button primary" href="/playground" onClick={(e) => { e.preventDefault(); onOpenPlayground(); }}>Open playground <span aria-hidden="true">→</span></a>
+            <a className="button quiet" href="/learn" onClick={(e) => { e.preventDefault(); navigate("learn"); }}>Read the field guide</a>
+          </div>
+          <p className="hero-footnote">Deterministic datasets · step-level replay · exact recall comparison</p>
+        </div>
+        <div className="hero-figure" aria-label="A query descending through an HNSW graph">
+          <div className="figure-head"><span>Search trace</span><code>ef = 8 · k = 3</code></div>
+          <svg viewBox="0 0 620 400" role="img" aria-label="Three HNSW layers connected by a search path">
+            <g className="figure-plane plane-2"><path d="m128 53 331 0 53 51-331 0Z" /><text x="92" y="73">L2</text><line x1="249" y1="76" x2="408" y2="78" /><circle cx="249" cy="76" r="7" /><circle className="entry" cx="408" cy="78" r="8" /></g>
+            <g className="figure-plane plane-1"><path d="m91 151 385 0 61 59-385 0Z" /><text x="54" y="174">L1</text><path d="M206 179 324 182 442 181M324 182l78 19" /><circle cx="206" cy="179" r="6" /><circle className="path" cx="324" cy="182" r="8" /><circle cx="442" cy="181" r="6" /><circle cx="402" cy="201" r="6" /></g>
+            <g className="figure-plane plane-0"><path d="m48 264 449 0 71 69-449 0Z" /><text x="12" y="287">L0</text><path d="M136 290 217 304 292 280 365 313 453 286M217 304l148 9M292 280l161 6M136 290l156-10" /><circle cx="136" cy="290" r="6" /><circle cx="217" cy="304" r="6" /><circle className="path" cx="292" cy="280" r="8" /><circle className="result" cx="365" cy="313" r="9" /><circle cx="453" cy="286" r="6" /><path className="query" d="m390 265 12 12m0-12-12 12" /></g>
+            <path className="descent" d="M408 86 324 174M324 190l-32 82" />
+          </svg>
+          <div className="figure-legend"><span><i className="dot entry" /> entry point</span><span><i className="dot path" /> visited</span><span><i className="dot result" /> result</span></div>
+        </div>
+      </section>
+      <section className="landing-index" aria-label="What you can explore">
+        <div><span className="index-num">01</span><h3>Build the hierarchy</h3><p>Watch insertion choose levels, candidates, and graph connections.</p></div>
+        <div><span className="index-num">02</span><h3>Trace a query</h3><p>Replay the greedy descent and layer-zero beam search one decision at a time.</p></div>
+        <div><span className="index-num">03</span><h3>Measure the trade-off</h3><p>Sweep M and efSearch against exact nearest-neighbor results.</p></div>
+      </section>
+    </main>
+  );
+}
+
 export default function App() {
   const [route, setRoute] = useState<Route>(routeFromLocation);
   const state = useApp();
   const dispatch = useDispatch();
   const graph = useViewGraph();
-  const stats = graphStats(graph);
-
+  const stats = useMemo(() => graphStats(graph), [graph]);
+  const initializedDirectRoute = useRef(false);
   const navigate = useCallback((next: Route) => {
     const path = next === "home" ? "/" : `/${next}`;
     window.history.pushState({}, "", path);
     setRoute(next);
   }, []);
+  const openPlayground = useCallback(() => {
+    if (state.graph.nodes.size === 0) dispatch({ type: "script", ops: [{ t: "preset", id: state.dataset.id, n: state.dataset.n, seed: state.dataset.seed }, { t: "tool", tool: "search" }] });
+    navigate("playground");
+  }, [dispatch, navigate, state.dataset, state.graph.nodes.size]);
 
   useEffect(() => {
-    const onPopState = () => setRoute(routeFromLocation());
-    window.addEventListener("popstate", onPopState);
-    return () => window.removeEventListener("popstate", onPopState);
-  }, []);
+    if (initializedDirectRoute.current) return;
+    initializedDirectRoute.current = true;
+    if (route === "playground" && state.graph.nodes.size === 0) {
+      dispatch({ type: "script", ops: [{ t: "preset", id: state.dataset.id, n: state.dataset.n, seed: state.dataset.seed }, { t: "tool", tool: "search" }] });
+    }
+  }, [dispatch, route, state.dataset, state.graph.nodes.size]);
 
+  useEffect(() => { const fn = () => setRoute(routeFromLocation()); window.addEventListener("popstate", fn); return () => window.removeEventListener("popstate", fn); }, []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (route !== "playground") return;
       const target = e.target as HTMLElement | null;
-      if (target && /^(INPUT|SELECT|TEXTAREA)$/.test(target.tagName)) return;
-      if (e.key === " ") {
-        e.preventDefault();
-        dispatch({ type: state.playing ? "pause" : "play" });
-      } else if (e.key === "ArrowRight") {
-        dispatch({ type: "stepBy", delta: 1 });
-      } else if (e.key === "ArrowLeft") {
-        dispatch({ type: "stepBy", delta: -1 });
-      }
+      if (target && /^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(target.tagName)) return;
+      if (e.key === " ") { e.preventDefault(); dispatch({ type: state.playing ? "pause" : "play" }); }
+      else if (e.key === "ArrowRight") dispatch({ type: "stepBy", delta: 1 });
+      else if (e.key === "ArrowLeft") dispatch({ type: "stepBy", delta: -1 });
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey);
   }, [dispatch, route, state.playing]);
 
-  const activeTab: RightTab =
-    state.rightTab === "code" || state.rightTab === "metrics" ? state.rightTab : "build";
-  const Panel = {
-    build: BuildPanel,
-    code: CodePanel,
-    metrics: MetricsPanel,
-  }[activeTab];
-
+  const activeTab = state.rightTab;
+  const Panel = PANELS[activeTab];
   return (
-    <div className="app">
+    <div className={`app route-${route}`}>
       <header className="topbar">
-        <div className="brand">
-          <h1>HNSW Explorer</h1>
-          <span>Learn how AI finds similar things</span>
-        </div>
-        <nav className="page-nav" aria-label="Main navigation">
-          <a
-            href="/learn"
-            aria-current={route === "learn" ? "page" : undefined}
-            onClick={(e) => {
-              e.preventDefault();
-              navigate("learn");
-            }}
-          >
-            Learn HNSW
-          </a>
-          <a
-            href="/playground"
-            aria-current={route === "playground" ? "page" : undefined}
-            onClick={(e) => {
-              e.preventDefault();
-              navigate("playground");
-            }}
-          >
-            Playground
-          </a>
-        </nav>
+        <a className="brand" href="/" aria-label="HNSW Explorer home" onClick={(e) => { e.preventDefault(); navigate("home"); }}><Mark /><span>HNSW</span><span className="brand-muted">Explorer</span></a>
+        <nav className="page-nav" aria-label="Main navigation"><a href="/learn" aria-current={route === "learn" ? "page" : undefined} onClick={(e) => { e.preventDefault(); navigate("learn"); }}>Field guide</a><a href="/playground" aria-current={route === "playground" ? "page" : undefined} onClick={(e) => { e.preventDefault(); openPlayground(); }}>Playground</a></nav>
         <div className="spacer" />
-        {route === "playground" && (
-          <div className="stat-strip">
-            <div className="stat">
-              <b>{stats.live}</b>
-              <span>vectors</span>
-            </div>
-            <div className="stat">
-              <b>{stats.total ? stats.topLayer + 1 : 0}</b>
-              <span>layers</span>
-            </div>
-            <div className="stat">
-              <b>{stats.edges}</b>
-              <span>edges</span>
-            </div>
-            <div className="stat">
-              <b>{state.params.M}</b>
-              <span>M</span>
-            </div>
-            <div className="stat">
-              <b>{state.params.efSearch}</b>
-              <span>ef search</span>
-            </div>
-            {stats.deleted > 0 && (
-              <div className="stat">
-                <b>{stats.deleted}</b>
-                <span>tombstoned</span>
-              </div>
-            )}
-          </div>
-        )}
+        {route === "playground" && <div className="stat-strip" aria-label="Graph summary"><span><b>{stats.live}</b> vectors</span><span><b>{stats.total ? stats.topLayer + 1 : 0}</b> layers</span><span><b>{stats.edges}</b> edges</span><span className="stat-param"><b>M {state.params.M}</b> · ef {state.params.efSearch}</span></div>}
         <ThemeToggle />
       </header>
-
-      {route === "home" ? (
-        <main className="landing-page">
-          <div className="landing-hero">
-            <span className="hero-badge">Free &amp; Open Source</span>
-            <h2>
-              Learn how AI finds<br />
-              <span className="hero-gradient">similar things instantly</span>
-            </h2>
-            <p className="hero-sub">
-              HNSW is the secret algorithm that powers fast AI search in apps like ChatGPT,
-              Google, and Spotify. This is the only guide you'll ever need —
-              with an interactive playground to see it work step by step.
-            </p>
-            <div className="landing-actions">
-              <a
-                className="iconbtn primary"
-                href="/learn"
-                onClick={(e) => {
-                  e.preventDefault();
-                  navigate("learn");
-                }}
-              >
-                Start Learning — it's free →
-              </a>
-              <a
-                className="iconbtn"
-                href="/playground"
-                onClick={(e) => {
-                  e.preventDefault();
-                  navigate("playground");
-                }}
-              >
-                Open playground
-              </a>
-            </div>
-          </div>
-          <div className="landing-features">
-            <div className="feature-card">
-              <div className="feature-icon">📖</div>
-              <h3>Plain English Guide</h3>
-              <p>No math degree needed. We explain every concept from scratch with real-world analogies.</p>
-            </div>
-            <div className="feature-card">
-              <div className="feature-icon">🎮</div>
-              <h3>Interactive Playground</h3>
-              <p>Insert vectors, run searches, and watch the algorithm navigate layer by layer in real time.</p>
-            </div>
-            <div className="feature-card">
-              <div className="feature-icon">🔬</div>
-              <h3>See Every Step</h3>
-              <p>Pause, rewind, and replay every decision the algorithm makes. Nothing is hidden.</p>
-            </div>
-          </div>
+      {route === "home" ? <Home navigate={navigate} onOpenPlayground={openPlayground} /> : route === "learn" ? <ExplanationPage onOpenPlayground={() => navigate("playground")} /> : (
+        <main className="playground-layout">
+          <section className="workbench" aria-label="Graph visualization and replay"><div className="canvas-stage"><GraphCanvas /><CanvasToolbar /></div><Transport /><Explainer onOpenExplanation={() => navigate("learn")} /></section>
+          <aside className="inspector"><div className="inspector-head"><p className="eyebrow">Experiment controls</p><div className="tabs" role="tablist" aria-label="Playground panels">{TABS.map(([id, label, title]) => <button key={id} role="tab" title={title} aria-selected={activeTab === id} aria-controls="inspector-panel" onClick={() => dispatch({ type: "setRightTab", tab: id })}>{label}</button>)}</div></div><div id="inspector-panel" className="inspector-panel" role="tabpanel"><Panel /></div></aside>
         </main>
-      ) : route === "learn" ? (
-        <ExplanationPage onOpenPlayground={() => navigate("playground")} />
-      ) : (
-        <div className="layout">
-          <section className="pane pane-center">
-            <div
-              style={{
-                position: "relative",
-                display: "flex",
-                flex: 1,
-                minHeight: 0,
-              }}
-            >
-              <GraphCanvas />
-              <CanvasToolbar />
-            </div>
-            <Transport />
-            <Explainer onOpenExplanation={() => navigate("learn")} />
-          </section>
-
-          <aside className="pane">
-            <div className="tabs" role="tablist">
-              {TABS.map(([id, label, title]) => (
-                <button
-                  key={id}
-                  role="tab"
-                  title={title}
-                  aria-selected={activeTab === id}
-                  onClick={() => dispatch({ type: "setRightTab", tab: id })}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <Panel />
-          </aside>
-        </div>
       )}
-      <div className="mobile-gate" role="alert">
-        <div>
-          <p className="eyebrow">Desktop experience</p>
-          <h2>HNSW Explorer is best explored on a larger screen.</h2>
-          <p>
-            Its interactive graph and step-by-step controls need more room.
-            Please reopen this site on a desktop or laptop.
-          </p>
-        </div>
-      </div>
+      <div className="mobile-gate" role="alert"><div><Mark /><p className="eyebrow">Desktop instrument</p><h2>The graph needs more room.</h2><p>Open HNSW Explorer on a desktop or laptop with a viewport at least 900 px wide.</p></div></div>
     </div>
   );
 }

@@ -38,7 +38,9 @@ export function MetricsPanel() {
           </dl>
           {recall === null && (
             <div className="note">
-              This replay is useful for understanding the algorithm, but <b>search</b> traces are the ones that unlock recall and brute-force comparisons here.
+              {trace.op === 'search' && graph.nodes.size === 0
+                ? 'Add vectors and run the search again to measure recall and cost.'
+                : <>This replay explains the operation. Run a <b>search</b> to unlock recall and exact-scan comparisons.</>}
             </div>
           )}
           {recall !== null && (

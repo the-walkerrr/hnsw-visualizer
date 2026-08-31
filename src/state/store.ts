@@ -94,10 +94,9 @@ export type Action =
 export function initialState(): AppState {
   const dataset = { id: 'clusters' as PresetId, n: 48, seed: 7 }
   const params = { ...DEFAULT_PARAMS }
-  const vecs = preset(dataset.id).make(dataset.n, dataset.seed)
   return {
     params,
-    graph: buildIndex(emptyGraph(), params, vecs),
+    graph: emptyGraph(),
     trace: null,
     step: 0,
     playing: false,
@@ -107,7 +106,7 @@ export function initialState(): AppState {
     layer: 0,
     ghostLayers: true,
     selected: null,
-    tool: 'search',
+    tool: 'insert',
     k: 5,
     animate: true,
     deleteMode: 'soft',

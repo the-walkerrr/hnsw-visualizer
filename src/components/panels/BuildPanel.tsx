@@ -1,167 +1,38 @@
 import { WORLD } from '../../hnsw/constants'
-import { PRESETS, preset } from '../../hnsw/presets'
-import type { PresetId } from '../../hnsw/presets'
+import { liveNodes } from '../../hnsw/graph'
+import { PRESETS, preset, type PresetId } from '../../hnsw/presets'
 import { makeRng } from '../../hnsw/rng'
 import { useApp, useDispatch, useScript } from '../../state/store'
+
+function RangeField({ id, label, value, min, max, hint, onChange }: { id: string; label: string; value: number; min: number; max: number; hint: string; onChange: (value: number) => void }) {
+  return <div className="field"><div className="field-head"><label htmlFor={id}>{label}</label><input className="number-control" type="number" aria-label={`${label} value`} min={min} max={max} value={value} onChange={(e) => onChange(Math.min(max, Math.max(min, Number(e.target.value) || min)))}/></div><input id={id} type="range" min={min} max={max} value={value} onChange={(e) => onChange(Number(e.target.value))}/><p className="hint">{hint}</p></div>
+}
 
 export function BuildPanel() {
   const state = useApp()
   const dispatch = useDispatch()
   const script = useScript()
   const { dataset, k, params } = state
-  const toolLabel = state.tool === 'insert' ? 'Insert' : 'Search'
-  const p = preset(dataset.id)
+  const vectorCount = liveNodes(state.graph).length
+  const currentPreset = preset(dataset.id)
   const setParams = (patch: Partial<typeof params>) => dispatch({ type: 'setParams', patch })
+  const rebuild = (id = dataset.id, n = vectorCount || dataset.n) => script([{ t: 'preset', id, n, seed: dataset.seed }])
+  const randomPoint = () => { const rng = makeRng((Date.now() ^ state.graph.nextSeq) >>> 0); return [40 + rng() * (WORLD.width - 80), 40 + rng() * (WORLD.height - 80)] as const }
 
-  const randomPoint = () => {
-    const rng = makeRng((Date.now() ^ state.graph.nextSeq) >>> 0)
-    return [40 + rng() * (WORLD.width - 80), 40 + rng() * (WORLD.height - 80)] as const
-  }
+  return <div className="pane-scroll">
+    <div className="panel-intro"><h2>Build an index</h2><p>Choose the data geometry, then place a query or a new vector on the graph.</p></div>
+    <div className="section-title">Dataset</div>
+    <div className="field"><div className="field-head"><label htmlFor="preset">Shape</label></div><select id="preset" value={dataset.id} onChange={(e) => rebuild(e.target.value as PresetId)}>{PRESETS.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><p className="hint">{currentPreset.blurb}</p></div>
+    <RangeField id="count" label="Vectors" value={vectorCount} min={0} max={400} hint="24–80 keeps individual routes legible." onChange={(n) => rebuild(dataset.id, n)}/>
+    <div className="row"><button className="button secondary compact" onClick={() => rebuild()}>Rebuild same graph</button><button className="button ghost compact" onClick={() => script([{ t: 'clear' }])}>Clear</button></div>
 
-  return (
-    <div className="pane-scroll">
-      <div className="note accent">
-        <strong>Quick start</strong>
-        <div className="quickstart">
-          <div className="quickstart-step">
-            <span className="quickstart-num">1</span>
-            <p>Pick <b>Search</b> to watch HNSW find neighbours, or <b>Insert</b> to watch the graph grow.</p>
-          </div>
-          <div className="quickstart-step">
-            <span className="quickstart-num">2</span>
-            <p>Click the canvas for an exact spot, or use the sample buttons below for a random example.</p>
-          </div>
-          <div className="quickstart-step">
-            <span className="quickstart-num">3</span>
-            <p>Use the replay bar to step through the trace, then open <b>Stats</b> to compare with brute force.</p>
-          </div>
-        </div>
-        <div className="status-row">
-          <span className="chip">tool: {toolLabel}</span>
-          <span className="chip">{state.trace ? 'replay loaded' : 'click the canvas to begin'}</span>
-        </div>
-      </div>
+    <div className="section-title">Operation</div>
+    <div className="operation-grid"><button className="operation-button" onClick={() => script([{ t: 'tool', tool: 'search' }, { t: 'search', at: [...randomPoint()] }])}><span>Search</span><small>Place a random query</small><b aria-hidden="true">→</b></button><button className="operation-button" onClick={() => script([{ t: 'tool', tool: 'insert' }, { t: 'insert', at: [...randomPoint()] }])}><span>Insert</span><small>Add a random vector</small><b aria-hidden="true">＋</b></button></div>
+    <RangeField id="k" label="Neighbors returned (k)" value={k} min={1} max={20} hint="The number of nearest neighbors returned by a search." onChange={(value) => dispatch({ type: 'setK', k: value })}/>
 
-      <div className="section-title">Graph</div>
-
-      <div className="field">
-        <div className="field-head">
-          <label htmlFor="preset">Dataset shape</label>
-        </div>
-        <select
-          id="preset"
-          value={dataset.id}
-          onChange={(e) =>
-            script([{ t: 'preset', id: e.target.value as PresetId, n: dataset.n, seed: dataset.seed }])
-          }
-        >
-          {PRESETS.map((x) => (
-            <option key={x.id} value={x.id}>
-              {x.name}
-            </option>
-          ))}
-        </select>
-        <p className="hint">{p.blurb}</p>
-      </div>
-
-      <div className="field">
-        <div className="field-head">
-          <label htmlFor="count">Number of vectors</label>
-          <span className="val">{dataset.n}</span>
-        </div>
-        <input
-          id="count"
-          type="range"
-          min={4}
-          max={400}
-          step={4}
-          value={dataset.n}
-          onChange={(e) =>
-            script([{ t: 'preset', id: dataset.id, n: Number(e.target.value), seed: dataset.seed }])
-          }
-        />
-        <p className="hint">Smaller graphs make the hierarchy and neighbour choices easier to read.</p>
-      </div>
-
-      <div className="row" style={{ marginBottom: 14 }}>
-        <button
-          className="iconbtn"
-          onClick={() => script([{ t: 'preset', id: dataset.id, n: dataset.n, seed: dataset.seed }])}
-        >
-          Reset graph
-        </button>
-      </div>
-
-      <div className="section-title">Try It</div>
-      <div className="row">
-        <button
-          className="iconbtn primary"
-          onClick={() => script([{ t: 'tool', tool: 'search' }, { t: 'search', at: [...randomPoint()] }])}
-        >
-          Sample search
-        </button>
-        <button
-          className="iconbtn"
-          onClick={() => script([{ t: 'tool', tool: 'insert' }, { t: 'insert', at: [...randomPoint()] }])}
-        >
-          Sample insert
-        </button>
-      </div>
-      <p className="hint" style={{ marginTop: 8 }}>
-        These run at a random spot. For a precise query or new vector, choose a tool and click on the canvas.
-      </p>
-
-      <div className="field" style={{ marginTop: 14 }}>
-        <div className="field-head">
-          <label htmlFor="k">Results, k</label>
-          <span className="val">{k}</span>
-        </div>
-        <input
-          id="k"
-          type="range"
-          min={1}
-          max={20}
-          value={k}
-          onChange={(e) => dispatch({ type: 'setK', k: Number(e.target.value) })}
-        />
-        <p className="hint">How many nearest neighbours the search returns.</p>
-      </div>
-
-      <div className="section-title">Two Knobs</div>
-      <div className="field">
-        <div className="field-head">
-          <label htmlFor="M">Connections, M</label>
-          <span className="val">{params.M}</span>
-        </div>
-        <input
-          id="M"
-          type="range"
-          min={2}
-          max={24}
-          value={params.M}
-          onChange={(e) => {
-            const M = Number(e.target.value)
-            setParams({ M, Mmax: M, Mmax0: M * 2, mL: 1 / Math.log(Math.max(M, 2)) })
-          }}
-        />
-        <p className="hint">More edges usually improve recall, but make the graph denser.</p>
-      </div>
-
-      <div className="field">
-        <div className="field-head">
-          <label htmlFor="efs">Search width, ef</label>
-          <span className="val">{params.efSearch}</span>
-        </div>
-        <input
-          id="efs"
-          type="range"
-          min={1}
-          max={120}
-          value={params.efSearch}
-          onChange={(e) => setParams({ efSearch: Number(e.target.value) })}
-        />
-        <p className="hint">A wider beam checks more candidates and is less likely to miss neighbours.</p>
-      </div>
-    </div>
-  )
+    <div className="section-title">Primary parameters</div>
+    <RangeField id="M" label="Connections (M)" value={params.M} min={2} max={24} hint="More edges improve navigability at a memory and build-time cost." onChange={(M) => setParams({ M, Mmax: M, Mmax0: M * 2, mL: 1 / Math.log(Math.max(M, 2)) })}/>
+    <RangeField id="efs" label="Search width (efSearch)" value={params.efSearch} min={1} max={120} hint="A wider beam checks more candidates and usually improves recall." onChange={(efSearch) => setParams({ efSearch })}/>
+    <button className="advanced-link" onClick={() => dispatch({ type: 'setRightTab', tab: 'params' })}>Open all parameters <span aria-hidden="true">→</span></button>
+  </div>
 }

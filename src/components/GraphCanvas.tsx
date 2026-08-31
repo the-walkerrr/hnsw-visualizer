@@ -384,7 +384,7 @@ export function GraphCanvas() {
       {!state.trace && graph.nodes.size === 0 && (
         <div className="canvas-overlay bl">
           <div className="legend">
-            <span>The index is empty — switch to the insert tool and click to add vectors.</span>
+            <span>The index is empty — click to add vectors from scratch.</span>
           </div>
         </div>
       )}
@@ -889,7 +889,6 @@ function CameraControls({
           </button>
         </div>
       )}
-      {stacked && <span className="chip">⇧drag = orbit</span>}
       <div className="segmented" role="group" aria-label="Zoom">
         <button title="Zoom out ( − )" onClick={() => onZoom(1 / 1.3)} disabled={cam.z <= ZOOM_MIN}>
           −

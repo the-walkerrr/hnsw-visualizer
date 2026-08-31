@@ -1,5 +1,6 @@
 import { listingById, listingIdForLine } from '../hnsw/pseudocode'
 import { useApp } from '../state/store'
+import { RichText } from './RichText'
 
 const TOOL_HINT: Record<string, { headline: string; body: string }> = {
   search: {
@@ -22,20 +23,14 @@ export function Explainer({ onOpenExplanation }: { onOpenExplanation?: () => voi
     return (
       <div className="explainer idle">
         <div className="head">
+          <span className="step-marker">Ready</span>
           <h3>{hint.headline}</h3>
-          <span className="chip">
-            ef = {params.efSearch} · k = {k} · M = {params.M}
-          </span>
+          <span className="trace-meta">ef {params.efSearch} · k {k} · M {params.M}</span>
         </div>
         <p>{hint.body}</p>
-        <div className="explainer-guide">
-          <span>1. Click the canvas or run a sample action.</span>
-          <span>2. Replay the steps just above this panel.</span>
-          <span>3. Open Stats to compare HNSW with exact scan.</span>
-        </div>
         {onOpenExplanation && (
           <button className="learn-link" onClick={onOpenExplanation}>
-            New here? Read the beginner guide first →
+            Open the field guide →
           </button>
         )}
       </div>
@@ -46,16 +41,11 @@ export function Explainer({ onOpenExplanation }: { onOpenExplanation?: () => voi
   return (
     <div className="explainer">
       <div className="head">
+        <span className="step-marker">{step + 1}</span>
         <h3>{current.title}</h3>
-        <span className="chip accent">{listing.title}</span>
-        <span className="chip">step {step + 1}/{total}</span>
-        {current.vis.layer !== null && <span className="chip">layer {current.vis.layer}</span>}
-        <span className="chip" title="Distance computations charged so far">
-          {current.distCalls} dist
-        </span>
-        {current.weight === 'minor' && <span className="chip">detail</span>}
+        <span className="trace-meta">{listing.title} · {step + 1}/{total}{current.vis.layer !== null ? ` · L${current.vis.layer}` : ''} · {current.distCalls} distances{current.weight === 'minor' ? ' · detail' : ''}</span>
       </div>
-      <p>{current.detail}</p>
+      <p><RichText text={current.detail} /></p>
       {onOpenExplanation && <button className="learn-link" onClick={onOpenExplanation}>See this in the full explanation →</button>}
     </div>
   )

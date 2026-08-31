@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react'
 
-/** Minimal inline formatter: **bold**, `code`, and _emphasis_. Enough for the
+/** Minimal inline formatter: **bold**, `code`, and *emphasis*. Enough for the
  *  lesson copy without pulling in a markdown dependency. */
 export function RichText({ text }: { text: string }) {
   const out: ReactNode[] = []
-  const re = /(\*\*[^*]+\*\*|`[^`]+`|_[^_]+_)/g
+  const re = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|_[^_]+_)/g
   let last = 0
   let m: RegExpExecArray | null
   let i = 0

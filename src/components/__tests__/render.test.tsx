@@ -35,6 +35,7 @@ function render(state: AppState, el: ReactElement): string {
 }
 
 const script = (state: AppState, ops: ScriptOp[]) => reducer(state, { type: 'script', ops })
+const seededState = () => script(initialState(), [{ t: 'preset', id: 'clusters', n: 48, seed: 7 }])
 
 const PANELS: Array<[RightTab, () => ReactElement]> = [
   ['build', () => <BuildPanel />],
@@ -47,35 +48,35 @@ const PANELS: Array<[RightTab, () => ReactElement]> = [
 
 const SCENARIOS: Array<[string, AppState]> = [
   ['default', initialState()],
-  ['empty index', script(initialState(), [{ t: 'clear' }])],
-  ['mid-search', script(initialState(), [{ t: 'search', at: [500, 320] }])],
+  ['seeded graph', seededState()],
+  ['mid-search', script(seededState(), [{ t: 'search', at: [500, 320] }])],
   ['mid-insert', script(initialState(), [{ t: 'insert', at: [500, 320] }])],
   [
     'mid-hard-delete',
-    script(initialState(), [{ t: 'deleteNearest', at: [232, 172], mode: 'hard' }]),
+    script(seededState(), [{ t: 'deleteNearest', at: [232, 172], mode: 'hard' }]),
   ],
   [
     'with tombstones',
-    script(initialState(), [
+    script(seededState(), [
       { t: 'deleteNearest', at: [232, 172], mode: 'soft' },
       { t: 'deleteNearest', at: [250, 150], mode: 'soft' },
     ]),
   ],
   [
     'mid-in-place-update',
-    script(initialState(), [
+    script(seededState(), [
       { t: 'updateNearest', at: [232, 172], to: [760, 470], mode: 'in-place' },
     ]),
   ],
   ['single-layer view', script(initialState(), [{ t: 'view', mode: 'layer', layer: 0 }])],
   [
     'node selected',
-    script(initialState(), [{ t: 'selectNearest', at: [232, 172] }]),
+    script(seededState(), [{ t: 'selectNearest', at: [232, 172] }]),
   ],
-  ['cosine metric', script(initialState(), [{ t: 'params', patch: { metric: 'cosine' } }])],
+  ['cosine metric', script(seededState(), [{ t: 'params', patch: { metric: 'cosine' } }])],
   [
     'simple selection, tiny M',
-    script(initialState(), [
+    script(seededState(), [
       { t: 'params', patch: { neighborRule: 'simple', M: 2, Mmax: 2, Mmax0: 3 } },
     ]),
   ],
@@ -85,14 +86,20 @@ describe('render smoke', () => {
   it('the whole app renders', () => {
     const html = renderToStaticMarkup(<StoreLess />)
     expect(html).toContain('HNSW Explorer')
-    expect(html).toContain('Learn HNSW')
+    expect(html).toContain('Field guide')
     expect(html).toContain('Open playground')
   })
 
-  it('shows beginner guidance in the setup and replay surfaces', () => {
-    expect(render(initialState(), <BuildPanel />)).toContain('Quick start')
-    expect(render(initialState(), <Transport />)).toContain('No replay yet')
-    expect(render(initialState(), <Explainer />)).toContain('Open Stats to compare HNSW with exact scan')
+  it('shows concise guidance in the setup and replay surfaces', () => {
+    expect(render(initialState(), <BuildPanel />)).toContain('Build an index')
+    expect(render(initialState(), <Transport />)).toContain('Run an operation to create a trace')
+    expect(render(initialState(), <Explainer onOpenExplanation={() => {}} />)).toContain('Open the field guide')
+  })
+
+  it('shows the live vector count in the build panel', () => {
+    expect(render(initialState(), <BuildPanel />)).toContain('aria-label="Vectors value" min="0" max="400" value="0"')
+    const inserted = script(initialState(), [{ t: 'insert', at: [500, 320] }])
+    expect(render(inserted, <BuildPanel />)).toContain('aria-label="Vectors value" min="0" max="400" value="1"')
   })
 
   it.each(SCENARIOS)('canvas + transport + explainer render: %s', (_name, state) => {
@@ -115,7 +122,7 @@ describe('render smoke', () => {
   })
 
   it('every step of an insert trace renders', () => {
-    const s = script(initialState(), [{ t: 'insert', at: [500, 320] }])
+    const s = script(seededState(), [{ t: 'insert', at: [500, 320] }])
     expect(s.trace!.steps.length).toBeGreaterThan(10)
     for (const [i] of s.trace!.steps.entries()) {
       expect(render({ ...s, step: i }, <GraphCanvas />).length, `step ${i}`).toBeGreaterThan(0)
@@ -124,7 +131,7 @@ describe('render smoke', () => {
   })
 
   it('every step of a search trace renders in both view modes', () => {
-    const s = script(initialState(), [{ t: 'search', at: [500, 320] }])
+    const s = script(seededState(), [{ t: 'search', at: [500, 320] }])
     for (const [i] of s.trace!.steps.entries()) {
       for (const mode of ['stack', 'layer'] as const) {
         expect(
@@ -136,7 +143,7 @@ describe('render smoke', () => {
   })
 
   it('every step of a hard delete renders, including the entry-point promotion', () => {
-    const base = initialState()
+    const base = seededState()
     const s = reducer(base, { type: 'deleteNode', id: base.graph.entry!, mode: 'hard' })
     for (const [i] of s.trace!.steps.entries()) {
       expect(render({ ...s, step: i }, <GraphCanvas />).length, `step ${i}`).toBeGreaterThan(0)

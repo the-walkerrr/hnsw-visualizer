@@ -1,40 +1,29 @@
 import { useEffect, useState } from 'react'
 
 type Theme = 'system' | 'light' | 'dark'
+const THEMES: Theme[] = ['system', 'light', 'dark']
 
-/** Storage can be unavailable (private windows, blocked site data, SSR), and
- *  reading it then *throws* rather than returning null — so every access is
- *  guarded and the toggle just falls back to following the OS. */
 function readTheme(): Theme {
   try {
-    const v = localStorage.getItem('hnsw-theme')
-    return v === 'light' || v === 'dark' ? v : 'system'
-  } catch {
-    return 'system'
-  }
+    const value = localStorage.getItem('hnsw-theme')
+    return value === 'light' || value === 'dark' ? value : 'system'
+  } catch { return 'system' }
 }
 
 export function ThemeToggle() {
   const [theme, setTheme] = useState<Theme>(readTheme)
 
   useEffect(() => {
-    const root = document.documentElement
-    if (theme === 'system') root.removeAttribute('data-theme')
-    else root.setAttribute('data-theme', theme)
-    try {
-      localStorage.setItem('hnsw-theme', theme)
-    } catch {
-      // Nothing to do — the choice just will not survive a reload.
-    }
+    if (theme === 'system') document.documentElement.removeAttribute('data-theme')
+    else document.documentElement.setAttribute('data-theme', theme)
+    try { localStorage.setItem('hnsw-theme', theme) } catch { /* session-only preference */ }
   }, [theme])
 
+  const next = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length]
   return (
-    <div className="segmented" role="group" aria-label="Theme">
-      {(['system', 'light', 'dark'] as const).map((t) => (
-        <button key={t} aria-pressed={theme === t} onClick={() => setTheme(t)}>
-          {t === 'system' ? 'auto' : t}
-        </button>
-      ))}
-    </div>
+    <button className="theme-toggle" onClick={() => setTheme(next)} aria-label={`Theme: ${theme}. Switch to ${next}.`} title={`Theme: ${theme}`}>
+      <span aria-hidden="true">{theme === 'dark' ? '●' : theme === 'light' ? '○' : '◐'}</span>
+      <span>{theme}</span>
+    </button>
   )
 }

@@ -5,19 +5,21 @@ import { advance, initialState, reducer, type Action, type AppState, type Script
 
 const run = (state: AppState, ...actions: Action[]) => actions.reduce(reducer, state)
 const script = (state: AppState, ops: ScriptOp[]) => reducer(state, { type: 'script', ops })
+const seededState = () => script(initialState(), [{ t: 'preset', id: 'clusters', n: 48, seed: 7 }])
 
 describe('initial state', () => {
-  it('builds a searchable index up front', () => {
+  it('starts with an empty index ready for manual inserts', () => {
     const s = initialState()
-    expect(s.graph.nodes.size).toBe(48)
-    expect(s.graph.entry).not.toBeNull()
+    expect(s.graph.nodes.size).toBe(0)
+    expect(s.graph.entry).toBeNull()
     expect(s.trace).toBeNull()
+    expect(s.tool).toBe('insert')
   })
 })
 
 describe('operations through the reducer', () => {
   it('a search produces a trace with a result and does not change the graph', () => {
-    const s = initialState()
+    const s = seededState()
     const after = script(s, [{ t: 'search', at: [500, 320] }])
     expect(after.trace?.op).toBe('search')
     expect(after.trace!.results.length).toBe(after.k)
@@ -30,16 +32,17 @@ describe('operations through the reducer', () => {
   it('an insert grows the graph and leaves a replayable trace', () => {
     const s = initialState()
     const after = script(s, [{ t: 'insert', at: [500, 320] }])
-    expect(after.graph.nodes.size).toBe(49)
+    expect(after.graph.nodes.size).toBe(1)
+    expect(after.graph.entry).not.toBeNull()
     const steps = after.trace!.steps
-    expect(steps.length).toBeGreaterThan(3)
+    expect(steps.length).toBeGreaterThan(1)
     // Snapshots must be independent copies, not aliases of the live graph.
     expect(steps[0].graph).not.toBe(after.graph)
     expect(steps[0].graph.nodes.size).toBeLessThanOrEqual(after.graph.nodes.size)
   })
 
   it('soft delete then restore round-trips', () => {
-    const s = initialState()
+    const s = seededState()
     const deleted = script(s, [{ t: 'deleteNearest', at: [232, 172], mode: 'soft' }])
     expect(graphStats(deleted.graph).deleted).toBe(1)
     const id = [...deleted.graph.nodes.values()].find((n) => n.deleted)!.id
@@ -49,7 +52,7 @@ describe('operations through the reducer', () => {
   })
 
   it('hard delete removes a node and clears the selection', () => {
-    const s = run(initialState(), { type: 'script', ops: [{ t: 'selectNearest', at: [232, 172] }] })
+    const s = run(seededState(), { type: 'script', ops: [{ t: 'selectNearest', at: [232, 172] }] })
     const id = s.selected!
     const after = reducer(s, { type: 'deleteNode', id, mode: 'hard' })
     expect(after.graph.nodes.has(id)).toBe(false)
@@ -57,7 +60,7 @@ describe('operations through the reducer', () => {
   })
 
   it('moving a node keeps the count and records an update trace', () => {
-    const s = initialState()
+    const s = seededState()
     const id = [...s.graph.nodes.keys()][10]
     const after = reducer(s, { type: 'moveNode', id, to: [640, 500] })
     expect(after.graph.nodes.size).toBe(s.graph.nodes.size)
@@ -66,7 +69,7 @@ describe('operations through the reducer', () => {
   })
 
   it('a structural parameter change rebuilds over the same vectors in the same order', () => {
-    const s = initialState()
+    const s = seededState()
     const before = [...s.graph.nodes.values()].sort((a, b) => a.seq - b.seq).map((n) => n.vec)
     const after = reducer(s, { type: 'setParams', patch: { M: 12 } })
     const now = [...after.graph.nodes.values()].sort((a, b) => a.seq - b.seq).map((n) => n.vec)
@@ -90,7 +93,7 @@ describe('operations through the reducer', () => {
 
 describe('playback', () => {
   it('coarse stepping skips minor steps, fine stepping does not', () => {
-    const s = script(initialState(), [{ t: 'insert', at: [500, 320] }])
+    const s = script(seededState(), [{ t: 'insert', at: [500, 320] }])
     const fine = { ...s, granularity: 'fine' as const }
     const coarse = { ...s, granularity: 'coarse' as const }
     const steps = s.trace!.steps
@@ -101,7 +104,7 @@ describe('playback', () => {
   })
 
   it('ticking runs to the end and then stops itself', () => {
-    let s = script(initialState(), [{ t: 'search', at: [500, 320] }])
+    let s = script(seededState(), [{ t: 'search', at: [500, 320] }])
     s = { ...s, playing: true, granularity: 'fine' }
     for (let i = 0; i < 2000 && s.playing; i++) s = reducer(s, { type: 'tick' })
     expect(s.playing).toBe(false)
@@ -109,7 +112,7 @@ describe('playback', () => {
   })
 
   it('stepping never leaves the trace bounds', () => {
-    const s = script(initialState(), [{ t: 'insert', at: [500, 320] }])
+    const s = script(seededState(), [{ t: 'insert', at: [500, 320] }])
     expect(advance(s, 0, -5)).toBe(0)
     expect(advance(s, s.trace!.steps.length - 1, 5)).toBe(s.trace!.steps.length - 1)
   })
@@ -172,7 +175,7 @@ describe('lesson scripts', () => {
 describe('lesson isolation', () => {
   it('a lesson that pins parameters is unaffected by earlier fiddling', () => {
     // Arrive at the hierarchy lesson after cranking M up in the Params tab.
-    let s = reducer(initialState(), { type: 'setParams', patch: { M: 24, Mmax: 24, Mmax0: 48, mL: 0.3 } })
+    let s = reducer(seededState(), { type: 'setParams', patch: { M: 24, Mmax: 24, Mmax0: 48, mL: 0.3 } })
     const layersBefore = s.graph.topLayer
     const hierarchyLesson = LESSONS[2].steps[0]
     s = script(s, hierarchyLesson.ops ?? [])
@@ -195,7 +198,7 @@ describe('lesson isolation', () => {
 
 describe('stale ids from a mid-trace snapshot', () => {
   it('dragging a node that the committed graph no longer has', () => {
-    const base = initialState()
+    const base = seededState()
     const victim = base.graph.entry!
     // Hard delete leaves the canvas showing snapshots in which the node still exists.
     const s = reducer(base, { type: 'deleteNode', id: victim, mode: 'hard' })
@@ -204,7 +207,7 @@ describe('stale ids from a mid-trace snapshot', () => {
   })
 
   it('restoring a node that the committed graph no longer has', () => {
-    const base = initialState()
+    const base = seededState()
     const victim = base.graph.entry!
     const s = reducer(base, { type: 'deleteNode', id: victim, mode: 'hard' })
     expect(() => reducer(s, { type: 'restoreNode', id: victim })).not.toThrow()

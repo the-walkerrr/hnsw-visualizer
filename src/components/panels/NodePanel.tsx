@@ -11,13 +11,8 @@ export function NodePanel() {
   if (!node) {
     return (
       <div className="pane-scroll">
-        <div className="empty">
-          Pick the <b>select</b> tool and click a node to inspect it.
-        </div>
-        <div className="note">
-          The inspector shows a node's level, its edges layer by layer, and lets you delete, restore
-          or move it. Dragging a node with the select tool triggers an update.
-        </div>
+        <div className="panel-intro"><h2>Inspect a node</h2><p>Choose <b>Inspect</b> above the graph, then select a node. Dragging it updates its vector and graph connections.</p></div>
+        <div className="empty"><span className="empty-glyph">◎</span><b>No node selected</b><span>Node level, neighbors, distance, and update actions will appear here.</span></div>
       </div>
     )
   }
@@ -117,27 +112,15 @@ export function NodePanel() {
             </button>
           </AlertDialog.Trigger>
           <AlertDialog.Portal>
-            <AlertDialog.Overlay style={{ position: 'fixed', inset: 0, background: 'rgb(0 0 0 / 0.4)', zIndex: 20 }} />
-            <AlertDialog.Content style={{
-              position: 'fixed',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              background: 'var(--surface-1)',
-              border: '1px solid var(--line-strong)',
-              borderRadius: 'var(--radius)',
-              padding: '24px',
-              width: 'min(380px, 90vw)',
-              zIndex: 20,
-              boxShadow: 'var(--shadow)',
-            }}>
-              <AlertDialog.Title style={{ fontWeight: 600, fontSize: 15, marginBottom: 8 }}>
+            <AlertDialog.Overlay className="dialog-overlay" />
+            <AlertDialog.Content className="dialog-content">
+              <AlertDialog.Title className="dialog-title">
                 Remove node {node.label}?
               </AlertDialog.Title>
-              <AlertDialog.Description style={{ color: 'var(--text-2)', fontSize: 13, marginBottom: 20 }}>
+              <AlertDialog.Description className="dialog-description">
                 This permanently removes the vector and repairs its neighbours. This cannot be undone.
               </AlertDialog.Description>
-              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <div className="dialog-actions">
                 <AlertDialog.Cancel asChild>
                   <button className="iconbtn">Cancel</button>
                 </AlertDialog.Cancel>
@@ -155,7 +138,7 @@ export function NodePanel() {
         </AlertDialog.Root>
       </div>
       <p className="hint">
-        Drag this node on the canvas (with the select tool) to change its vector — that runs an
+        Drag this node on the canvas (with the Inspect tool) to change its vector — that runs an
         update in <b>{state.updateMode}</b> mode.
       </p>
     </div>
