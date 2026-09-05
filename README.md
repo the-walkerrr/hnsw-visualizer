@@ -21,7 +21,7 @@ implemented line for line, with every distance computation counted.
 |---|---|
 | Insert, with the two-phase descent and the neighbour-selection heuristic | click with the **insert** tool |
 | k-NN search, with the beam and the early-exit condition | click with the **search** tool |
-| Soft delete (tombstone) and restore | **Node** tab, or the Build tab's delete mode |
+| Soft delete (tombstone) and restore | **Inspect** tab |
 | Hard delete with neighbour repair and entry-point promotion | **Node** tab → hard delete |
 | Update, both by re-insert and in place | drag a node with the **select** tool |
 | Parameter tuning — M, Mmax, Mmax0, efConstruction, efSearch, mL, metric, selection rule | **Params** tab |

@@ -30,7 +30,7 @@ const FAR_CORNER: [number, number] = [905, 575]
 const clusters = (n: number): ScriptOp => ({ t: 'preset', id: 'clusters', n, seed: 7 })
 
 /** Lessons that describe a specific picture pin the parameters that produce it,
- *  so arriving from the Params tab with M = 24 cannot contradict the words. */
+ *  so arriving from the Tune tab with M = 24 cannot contradict the words. */
 const TEACHING_PARAMS: ScriptOp = {
   t: 'params',
   patch: {
@@ -49,11 +49,11 @@ const TEACHING_PARAMS: ScriptOp = {
 
 export const LESSONS: Lesson[] = [
   {
-    title: 'The problem HNSW solves',
-    summary: 'k-nearest-neighbour search, why exact is too slow, and what "approximate" costs you.',
+    title: 'Why do we need HNSW?',
+    summary: 'Find similar items without checking every item one by one.',
     steps: [
       {
-        title: 'Finding the nearest vector',
+        title: 'Start with dots and distance',
         ops: [
           TEACHING_PARAMS,
           clusters(48),
@@ -64,20 +64,20 @@ export const LESSONS: Lesson[] = [
         blocks: [
           {
             t: 'p',
-            text: 'Everything on this canvas is a **vector**. Here each one has two dimensions so you can see it as a dot, but the algorithm is identical for the 768- or 1536-dimensional embeddings a real system stores. The only operation it needs is a **distance** between two vectors.',
+            text: 'Each dot on the canvas represents one stored item: perhaps a song, image, or paragraph. Computers describe that item with a list of numbers called a **vector**. This example uses only two numbers so we can draw the vector as a dot.',
           },
           {
             t: 'p',
-            text: 'The task is **k-nearest-neighbour search**: given a query vector `q`, return the `k` stored vectors closest to it. That is what powers semantic search, recommendations, deduplication, and retrieval for language models.',
+            text: 'Dots that are close together represent similar items. A search places a new query dot, called `q`, and asks for the nearest stored dots. The number of answers requested is `k`: if `k = 5`, we want five results.',
           },
           {
             t: 'p',
-            text: 'The obvious algorithm is to compare `q` against every stored vector and keep the best `k`. It is exactly right, trivially parallel, and completely impractical: cost grows linearly with the number of vectors, and each comparison touches every dimension.',
+            text: 'The simplest method measures the distance from the query to **every** stored dot, sorts them, and keeps the nearest `k`. This exact scan always gives the right answer. The problem is scale: ten million stored items require ten million comparisons for one search.',
           },
           { t: 'math', text: 'exact scan  =  O(N · d)  distance computations per query' },
           {
             t: 'try',
-            text: 'Click anywhere on the canvas to search. Then open the **Metrics** tab: it reports what the search actually cost versus what an exact scan would have cost.',
+            text: 'Run this example, then use the step buttons below the graph. Open **Results** to compare how many distances HNSW checked with how many an exact scan would check.',
             ops: [{ t: 'search', at: MIDDLE }, { t: 'tab', tab: 'metrics' }],
           },
           {
@@ -88,20 +88,20 @@ export const LESSONS: Lesson[] = [
         ],
       },
       {
-        title: 'The trade: recall for speed',
+        title: 'The trade-off: speed versus accuracy',
         blocks: [
           {
             t: 'p',
-            text: 'Nobody has found a way to make exact nearest-neighbour search sublinear in high dimensions — that is the **curse of dimensionality**, and it defeats every tree-based index (kd-trees, ball trees) once you pass roughly 20 dimensions. So practical systems give up exactness.',
+            text: 'HNSW avoids checking most stored items. That makes it fast, but it also means it can occasionally miss a true nearest item. This is why HNSW is called an **approximate nearest-neighbor** search method.',
           },
           {
             t: 'p',
-            text: 'An **approximate** nearest neighbour index returns *probably* the right answers. The quality measure is **recall@k**: of the `k` true nearest neighbours, what fraction did you actually return?',
+            text: 'We measure the quality with **recall@k**. It asks a simple question: out of the `k` correct answers from an exact scan, how many did the fast search return?',
           },
           { t: 'math', text: 'recall@k  =  |returned ∩ true top-k|  /  k' },
           {
             t: 'p',
-            text: 'HNSW is the graph-based answer, and it is the default in essentially every vector database — Qdrant, Weaviate, Milvus, Vespa, Elasticsearch, pgvector, Redis, Lucene — as well as in FAISS and the reference library hnswlib. Typical operating points reach 95–99% recall while touching a few hundred vectors out of millions.',
+            text: 'In practice, HNSW can inspect a tiny part of a large collection while still returning most or all of the correct neighbors. You choose the balance: spend more work for higher recall, or accept slightly lower recall for a faster search.',
           },
           {
             t: 'p',
@@ -113,8 +113,8 @@ export const LESSONS: Lesson[] = [
   },
 
   {
-    title: 'Greedy search, and where it fails',
-    summary: 'Walk a proximity graph downhill. Then watch it get stuck, twice.',
+    title: 'How the search walks',
+    summary: 'Follow links toward the query, then see why one path is sometimes not enough.',
     steps: [
       {
         title: 'Walking downhill',
@@ -128,11 +128,11 @@ export const LESSONS: Lesson[] = [
         blocks: [
           {
             t: 'p',
-            text: 'Forget layers for a moment. Here is a single graph where each node links to its nearest few neighbours, and the search is the simplest thing imaginable: from wherever you are, step to the neighbour closest to `q`; if no neighbour is closer than you are, stop.',
+            text: 'Ignore the upper layers for a moment. Start on one dot, inspect its connected neighbors, and move to the neighbor closest to the query `q`. Repeat until none of the connected neighbors is closer. This is a **greedy walk**: always take the best next step you can see.',
           },
           {
             t: 'p',
-            text: 'ef is pinned to 1, so this is a pure greedy walk — exactly `SEARCH-LAYER` with a beam of one. Watch the orange node move.',
+            text: 'For this example the search remembers only one route. Watch the orange current dot move toward the pink query.',
           },
           {
             t: 'try',
@@ -141,7 +141,7 @@ export const LESSONS: Lesson[] = [
           },
           {
             t: 'note',
-            text: 'The stopping rule is the interesting part. The walk halts when the nearest unexpanded candidate is further away than the worst result already found — at that moment no remaining candidate can possibly improve the answer, so continuing is provably pointless.',
+            text: 'The walk stops when the best unvisited option is already worse than the best answer it has. With only one remembered route, that can be fast—but it can also stop in the wrong place.',
           },
         ],
       },
@@ -154,18 +154,18 @@ export const LESSONS: Lesson[] = [
           },
           {
             t: 'try',
-            text: 'Query the far corner, where the graph is sparse and the clusters are elsewhere. Compare what came back with the true answer in the Metrics tab.',
+            text: 'Query the far corner, where the graph is sparse and the clusters are elsewhere. Compare what came back with the true answer in the Results tab.',
             ops: [{ t: 'search', at: FAR_CORNER }, { t: 'tab', tab: 'metrics' }],
           },
           {
             t: 'p',
-            text: 'There are two independent fixes, and HNSW uses both.',
+            text: 'HNSW uses two ideas to avoid that trap.',
           },
           {
             t: 'ul',
             items: [
-              '**Widen the beam.** Keep the best `ef` candidates instead of one, so the search can carry on through a locally-worse node and still remember the good ones. That is what `ef` does.',
-              '**Add long edges.** A graph with only short links is a lattice: getting anywhere takes a number of hops proportional to distance. Add a few long-range links and the number of hops collapses to roughly log N — a **navigable small world**. In HNSW those long edges are not special-cased at all: they are simply the edges of the sparse upper layers, where the nearest neighbour is already far away.',
+              '**Remember more routes.** `efSearch` controls how many promising candidates stay in play. A larger value makes it harder for one bad turn to end the search.',
+              '**Use long-distance shortcuts.** Sparse upper layers connect dots that are farther apart, so the search can cross the graph in a few large jumps before using short local links.',
             ],
           },
           {
@@ -196,11 +196,11 @@ export const LESSONS: Lesson[] = [
   },
 
   {
-    title: 'Layers: a skip list for vectors',
-    summary: 'Where the H in HNSW comes from, and why the level is a coin flip.',
+    title: 'Layers are express lanes',
+    summary: 'Use long jumps first, then move down to short and precise links.',
     steps: [
       {
-        title: 'The skip-list idea',
+        title: 'Highways first, local streets last',
         ops: [
           TEACHING_PARAMS,
           clusters(60),
@@ -210,11 +210,11 @@ export const LESSONS: Lesson[] = [
         blocks: [
           {
             t: 'p',
-            text: 'A skip list makes a sorted linked list searchable in log time by stacking sparser and sparser express lanes above it. You travel far on a high lane, drop down when you overshoot, and finish on the bottom lane, which contains everything.',
+            text: 'A road trip is faster when you use highways for long distances and local streets near the destination. HNSW copies that idea with stacked graph layers.',
           },
           {
             t: 'p',
-            text: 'HNSW is that idea for proximity graphs. **Layer 0 contains every vector.** Each layer above holds a random sample of the layer below, so its edges span much greater distances. A search starts at the top and drops down one layer at a time.',
+            text: '**Layer 0 contains every dot.** Each higher layer contains fewer dots, so the links naturally cover longer distances. A search begins at the highest available layer, gets closer in large jumps, and then drops down one layer at a time.',
           },
           {
             t: 'p',
@@ -228,7 +228,7 @@ export const LESSONS: Lesson[] = [
         ],
       },
       {
-        title: 'The level is a coin flip',
+        title: 'A random draw chooses each dot’s height',
         blocks: [
           {
             t: 'p',
@@ -250,12 +250,12 @@ export const LESSONS: Lesson[] = [
           },
           {
             t: 'p',
-            text: 'Randomness here is not laziness — it is what keeps insertion cheap and lock-free-ish, and it makes the layer structure independent of insertion order. The **Metrics** tab plots the level histogram against the expected ratio.',
+            text: 'Randomness here is not laziness — it is what keeps insertion cheap and lock-free-ish, and it makes the layer structure independent of insertion order. The **Results** tab plots the level histogram against the expected ratio.',
           },
           {
             t: 'note',
             tone: 'warn',
-            text: 'Turn `mL` up in the Params tab and the index grows extra, nearly-empty layers: every search then pays for hops through layers that contain almost nothing. Turn it down to 0 and you are back to a single flat graph.',
+            text: 'Turn `mL` up in the Tune tab and the index grows extra, nearly-empty layers: every search then pays for hops through layers that contain almost nothing. Turn it down to 0 and you are back to a single flat graph.',
           },
         ],
       },
@@ -283,7 +283,7 @@ export const LESSONS: Lesson[] = [
           },
           {
             t: 'try',
-            text: 'Step forward through the trace and watch the **Code** tab: the highlighted line walks down `INSERT` and into `SEARCH-LAYER`.',
+            text: 'Step forward through the trace and watch the **Trace** tab: the highlighted line walks down `INSERT` and into `SEARCH-LAYER`.',
             ops: [{ t: 'seek', to: 'start' }],
           },
           {
@@ -371,7 +371,7 @@ export const LESSONS: Lesson[] = [
           },
           {
             t: 'try',
-            text: 'Look at the `parts` column in the Metrics tab — the number of disconnected pieces per layer, and a warning if any piece has no way in from above.',
+            text: 'Look at the `parts` column in the Results tab — the number of disconnected pieces per layer, and a warning if any piece has no way in from above.',
             ops: [{ t: 'tab', tab: 'metrics' }],
           },
           {
@@ -767,7 +767,7 @@ export const LESSONS: Lesson[] = [
         blocks: [
           {
             t: 'p',
-            text: 'The paper is short and readable: Yu. A. Malkov, D. A. Yashunin, *"Efficient and robust approximate nearest neighbor search using Hierarchical Navigable Small World graphs"* (arXiv:1603.09320, 2016). The pseudocode in the Code tab is Algorithms 1–5 from it, verbatim.',
+            text: 'The paper is short and readable: Yu. A. Malkov, D. A. Yashunin, *"Efficient and robust approximate nearest neighbor search using Hierarchical Navigable Small World graphs"* (arXiv:1603.09320, 2016). The pseudocode in the Trace tab is Algorithms 1–5 from it, verbatim.',
           },
           {
             t: 'ul',

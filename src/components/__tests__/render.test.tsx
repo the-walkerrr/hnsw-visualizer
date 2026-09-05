@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { ReactElement } from 'react'
 import App from '../../App'
 import { emptyGraph } from '../../hnsw/graph'
+import { CONTROL_GUIDES } from '../../lessons/controlGuides'
 import {
   DispatchCtx,
   StateCtx,
@@ -14,6 +15,7 @@ import {
 } from '../../state/store'
 import { CanvasToolbar } from '../CanvasToolbar'
 import { Explainer } from '../Explainer'
+import { ExplanationPage } from '../ExplanationPage'
 import { GraphCanvas } from '../GraphCanvas'
 import { Transport } from '../Transport'
 import { BuildPanel } from '../panels/BuildPanel'
@@ -86,14 +88,36 @@ describe('render smoke', () => {
   it('the whole app renders', () => {
     const html = renderToStaticMarkup(<StoreLess />)
     expect(html).toContain('HNSW Explorer')
-    expect(html).toContain('Field guide')
+    expect(html).toContain('Learn')
     expect(html).toContain('Open playground')
+    expect(html).toContain('Read the mobile-friendly guide')
   })
 
   it('shows concise guidance in the setup and replay surfaces', () => {
-    expect(render(initialState(), <BuildPanel />)).toContain('Build an index')
+    expect(render(initialState(), <BuildPanel />)).toContain('Start an experiment')
     expect(render(initialState(), <Transport />)).toContain('Run an operation to create a trace')
     expect(render(initialState(), <Explainer onOpenExplanation={() => {}} />)).toContain('Open the field guide')
+  })
+
+  it('teaches from zero before showing the deep-dive lessons', () => {
+    const html = render(initialState(), <ExplanationPage onOpenPlayground={() => {}} />)
+    expect(html).toContain('The five-minute picture')
+    expect(html).toContain('No prior knowledge')
+    expect(html).toContain('Turn items into dots')
+    expect(html.indexOf('The five-minute picture')).toBeLessThan(html.indexOf('Optional deep dive'))
+    const visibleText = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ')
+    expect(visibleText).not.toMatch(/\b(?:Params|Code|Metrics) tab\b/)
+  })
+
+  it('gives every adjustable control a Learn anchor and an up/down explanation', () => {
+    const learn = render(initialState(), <ExplanationPage onOpenPlayground={() => {}} />)
+    const panels = `${render(initialState(), <BuildPanel />)}${render(initialState(), <ParamsPanel />)}`
+    for (const guide of Object.values(CONTROL_GUIDES)) {
+      expect(learn, guide.label).toContain(`id="${guide.id}"`)
+      expect(panels, guide.label).toContain(`href="/learn#${guide.id}"`)
+    }
+    expect(panels).toContain('Decrease / off')
+    expect(panels).toContain('Increase / on')
   })
 
   it('shows the live vector count in the build panel', () => {
@@ -156,6 +180,15 @@ describe('render smoke', () => {
       expect(render({ ...s, rightTab: tab }, make()).length, tab).toBeGreaterThan(0)
     }
     expect(render(s, <GraphCanvas />)).toContain('svg')
+  })
+
+  it('offers keyboard-operable node selection and movement controls', () => {
+    const selected = script(seededState(), [{ t: 'selectNearest', at: [232, 172] }])
+    const html = render(selected, <NodePanel />)
+    expect(html).toContain('id="node-picker"')
+    expect(html).toContain('id="node-x"')
+    expect(html).toContain('id="node-y"')
+    expect(html).toContain('Move node')
   })
 })
 

@@ -9,7 +9,7 @@ import {
   runSoftDelete,
   runUpdate,
 } from '../hnsw/algorithm'
-import { emptyGraph, liveNodes } from '../hnsw/graph'
+import { emptyGraph } from '../hnsw/graph'
 import { distance } from '../hnsw/metric'
 import { preset, type PresetId } from '../hnsw/presets'
 import type { Graph, NodeId, Params, Trace, Vec } from '../hnsw/types'
@@ -25,8 +25,8 @@ export type ScriptOp =
   | { t: 'clear' }
   | { t: 'preset'; id: PresetId; n: number; seed?: number; append?: boolean }
   | { t: 'params'; patch: Partial<Params> }
-  | { t: 'insert'; at: Vec; level?: number; label?: string; animate?: boolean }
-  | { t: 'search'; at: Vec; animate?: boolean }
+  | { t: 'insert'; at: Vec; level?: number; label?: string }
+  | { t: 'search'; at: Vec }
   | { t: 'deleteNearest'; at: Vec; mode: 'soft' | 'hard' }
   | { t: 'updateNearest'; at: Vec; to: Vec; mode: 'reinsert' | 'in-place' }
   | { t: 'selectNearest'; at: Vec }
@@ -36,12 +36,6 @@ export type ScriptOp =
   | { t: 'tab'; tab: RightTab }
   | { t: 'closeTrace' }
   | { t: 'seek'; to: 'start' | 'end' }
-
-export interface LogEntry {
-  id: number
-  label: string
-  detail: string
-}
 
 export interface AppState {
   params: Params
@@ -57,13 +51,9 @@ export interface AppState {
   selected: NodeId | null
   tool: Tool
   k: number
-  animate: boolean
-  deleteMode: 'soft' | 'hard'
   updateMode: 'reinsert' | 'in-place'
   rightTab: RightTab
   dataset: { id: PresetId; n: number; seed: number }
-  log: LogEntry[]
-  logSeq: number
 }
 
 export type Action =
@@ -82,8 +72,6 @@ export type Action =
   | { type: 'select'; id: NodeId | null }
   | { type: 'setTool'; tool: Tool }
   | { type: 'setK'; k: number }
-  | { type: 'toggleAnimate' }
-  | { type: 'setDeleteMode'; mode: 'soft' | 'hard' }
   | { type: 'setUpdateMode'; mode: 'reinsert' | 'in-place' }
   | { type: 'setRightTab'; tab: RightTab }
   | { type: 'deleteNode'; id: NodeId; mode: 'soft' | 'hard' }
@@ -108,13 +96,9 @@ export function initialState(): AppState {
     selected: null,
     tool: 'insert',
     k: 5,
-    animate: true,
-    deleteMode: 'soft',
     updateMode: 'reinsert',
     rightTab: 'build',
     dataset,
-    log: [],
-    logSeq: 0,
   }
 }
 
@@ -153,26 +137,20 @@ export function advance(state: AppState, from: number, delta: number): number {
   return i
 }
 
-function withTrace(state: AppState, graph: Graph, trace: Trace, label: string): AppState {
-  const animate = state.animate && trace.steps.length > 0
-  const detail = trace.steps.length
-    ? `${trace.steps.length} steps · ${trace.stats.distCalls} distance computations`
-    : ''
+function withTrace(state: AppState, graph: Graph, trace: Trace): AppState {
   return {
     ...state,
     graph,
     trace,
-    step: animate ? 0 : Math.max(trace.steps.length - 1, 0),
-    playing: animate && state.playing,
-    log: [{ id: state.logSeq, label, detail }, ...state.log].slice(0, 40),
-    logSeq: state.logSeq + 1,
+    step: 0,
+    playing: trace.steps.length > 0 && state.playing,
   }
 }
 
 function applyOp(state: AppState, op: ScriptOp): AppState {
   switch (op.t) {
     case 'clear':
-      return { ...state, graph: emptyGraph(), trace: null, step: 0, selected: null, log: [] }
+      return { ...state, graph: emptyGraph(), trace: null, step: 0, selected: null }
     case 'preset': {
       const dataset = { id: op.id, n: op.n, seed: op.seed ?? state.dataset.seed }
       const vecs = preset(op.id).make(op.n, dataset.seed)
@@ -233,13 +211,11 @@ function applyOp(state: AppState, op: ScriptOp): AppState {
         label: op.label,
         level: op.level,
       })
-      const next = withTrace(state, graph, trace, trace.title)
-      return op.animate === false ? { ...next, step: trace.steps.length - 1 } : next
+      return withTrace(state, graph, trace)
     }
     case 'search': {
       const { trace } = runSearch(state.graph, state.params, op.at, state.k)
-      const next = withTrace(state, state.graph, trace, trace.title)
-      return op.animate === false ? { ...next, step: trace.steps.length - 1 } : next
+      return withTrace(state, state.graph, trace)
     }
     case 'deleteNearest': {
       const id = nearestNode(state.graph, op.at, state.params, op.mode === 'soft')
@@ -250,7 +226,7 @@ function applyOp(state: AppState, op: ScriptOp): AppState {
       const id = nearestNode(state.graph, op.at, state.params, true)
       if (id === null) return state
       const { graph, trace } = runUpdate(state.graph, state.params, id, op.to, op.mode)
-      return withTrace(state, graph, trace, trace.title)
+      return withTrace(state, graph, trace)
     }
     case 'selectNearest':
       return { ...state, selected: nearestNode(state.graph, op.at, state.params) }
@@ -282,13 +258,13 @@ function applyDelete(state: AppState, id: NodeId, mode: 'soft' | 'hard'): AppSta
   if (!node) return state
   if (mode === 'soft' && node.deleted) {
     const { graph, trace } = runRestore(state.graph, state.params, id)
-    return withTrace(state, graph, trace, trace.title)
+    return withTrace(state, graph, trace)
   }
   const { graph, trace } =
     mode === 'soft'
       ? runSoftDelete(state.graph, state.params, id)
       : runHardDelete(state.graph, state.params, id)
-  const next = withTrace(state, graph, trace, trace.title)
+  const next = withTrace(state, graph, trace)
   return mode === 'hard' ? { ...next, selected: null } : next
 }
 
@@ -330,10 +306,6 @@ export function reducer(state: AppState, action: Action): AppState {
       return { ...state, tool: action.tool }
     case 'setK':
       return { ...state, k: action.k }
-    case 'toggleAnimate':
-      return { ...state, animate: !state.animate }
-    case 'setDeleteMode':
-      return { ...state, deleteMode: action.mode }
     case 'setUpdateMode':
       return { ...state, updateMode: action.mode }
     case 'setRightTab':
@@ -347,7 +319,7 @@ export function reducer(state: AppState, action: Action): AppState {
     case 'restoreNode': {
       if (!state.graph.nodes.has(action.id)) return state
       const { graph, trace } = runRestore(state.graph, state.params, action.id)
-      return withTrace(state, graph, trace, trace.title)
+      return withTrace(state, graph, trace)
     }
     case 'moveNode': {
       if (!state.graph.nodes.has(action.id)) return state
@@ -358,7 +330,7 @@ export function reducer(state: AppState, action: Action): AppState {
         action.to,
         state.updateMode,
       )
-      return withTrace(state, graph, trace, trace.title)
+      return withTrace(state, graph, trace)
     }
     case 'closeTrace':
       return { ...state, trace: null, step: 0, playing: false }
@@ -415,9 +387,4 @@ export function useShownLayer(): { layer: number; fromTrace: number | null } {
 export function useCurrentStep() {
   const { trace, step } = useApp()
   return trace?.steps[step] ?? null
-}
-
-export function useLiveCount(): number {
-  const g = useViewGraph()
-  return useMemo(() => liveNodes(g).length, [g])
 }

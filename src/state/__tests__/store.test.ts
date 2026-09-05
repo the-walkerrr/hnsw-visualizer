@@ -26,7 +26,6 @@ describe('operations through the reducer', () => {
     expect(after.trace!.exact.length).toBe(after.k)
     expect(after.graph).toBe(s.graph)
     expect(after.step).toBe(0)
-    expect(after.log[0].label).toContain('Search')
   })
 
   it('an insert grows the graph and leaves a replayable trace', () => {
@@ -174,7 +173,7 @@ describe('lesson scripts', () => {
 
 describe('lesson isolation', () => {
   it('a lesson that pins parameters is unaffected by earlier fiddling', () => {
-    // Arrive at the hierarchy lesson after cranking M up in the Params tab.
+    // Arrive at the hierarchy lesson after cranking M up in the Tune tab.
     let s = reducer(seededState(), { type: 'setParams', patch: { M: 24, Mmax: 24, Mmax0: 48, mL: 0.3 } })
     const layersBefore = s.graph.topLayer
     const hierarchyLesson = LESSONS[2].steps[0]

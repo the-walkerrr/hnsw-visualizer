@@ -869,41 +869,42 @@ function CameraControls({
 }) {
   const step = Math.PI / 12
   return (
-    <div
-      className="canvas-overlay camera"
-      title="Scroll to zoom · drag to pan · shift-drag to orbit · 0 to reset"
-    >
+    <>
       {stacked && (
-        <div className="segmented" role="group" aria-label="Orientation">
-          <button title="Spin the stack left ( [ )" onClick={() => onYaw(-step)}>
-            ↺
-          </button>
-          <button title="Spin the stack right ( ] )" onClick={() => onYaw(step)}>
-            ↻
-          </button>
-          <button title="Tilt towards edge-on ( , )" onClick={() => onPitch(-0.05)}>
-            ⌄
-          </button>
-          <button title="Tilt towards top-down ( . )" onClick={() => onPitch(0.05)}>
-            ⌃
-          </button>
+        <div className="canvas-overlay camera-orientation" title="Shift-drag to orbit · [ ] to spin · , . to tilt">
+          <div className="segmented" role="group" aria-label="Orientation">
+            <button title="Spin the stack left ( [ )" onClick={() => onYaw(-step)}>
+              ↺
+            </button>
+            <button title="Spin the stack right ( ] )" onClick={() => onYaw(step)}>
+              ↻
+            </button>
+            <button title="Tilt towards edge-on ( , )" onClick={() => onPitch(-0.05)}>
+              ⌄
+            </button>
+            <button title="Tilt towards top-down ( . )" onClick={() => onPitch(0.05)}>
+              ⌃
+            </button>
+          </div>
         </div>
       )}
-      <div className="segmented" role="group" aria-label="Zoom">
-        <button title="Zoom out ( − )" onClick={() => onZoom(1 / 1.3)} disabled={cam.z <= ZOOM_MIN}>
-          −
-        </button>
-        <button title="Zoom in ( + )" onClick={() => onZoom(1.3)} disabled={cam.z >= ZOOM_MAX}>
-          +
-        </button>
-        <button
-          title="Reset the view ( 0 )"
-          onClick={onReset}
-          disabled={isFramed(cam) && cam.yaw === 0}
-        >
-          {isFramed(cam) ? 'fit' : `${cam.z.toFixed(1)}×`}
-        </button>
+      <div className="canvas-overlay camera-zoom" title="Scroll to zoom · drag to pan · 0 to reset">
+        <div className="segmented" role="group" aria-label="Zoom">
+          <button title="Zoom out ( − )" onClick={() => onZoom(1 / 1.3)} disabled={cam.z <= ZOOM_MIN}>
+            −
+          </button>
+          <button title="Zoom in ( + )" onClick={() => onZoom(1.3)} disabled={cam.z >= ZOOM_MAX}>
+            +
+          </button>
+          <button
+            title="Reset the view ( 0 )"
+            onClick={onReset}
+            disabled={isFramed(cam) && cam.yaw === 0}
+          >
+            {isFramed(cam) ? 'fit' : `${cam.z.toFixed(1)}×`}
+          </button>
+        </div>
       </div>
-    </div>
+    </>
   )
 }

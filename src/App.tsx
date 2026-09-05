@@ -53,14 +53,14 @@ function Home({ navigate, onOpenPlayground }: { navigate: (route: Route) => void
     <main className="landing-page">
       <section className="landing-hero">
         <div className="landing-copy">
-          <p className="eyebrow">Interactive algorithm field guide</p>
-          <h2>See how HNSW searches.</h2>
-          <p className="hero-sub">Build a hierarchical graph, place a query, and follow every hop from the entry point to the nearest neighbors. Then change the index and measure what it costs.</p>
+          <p className="eyebrow">Visual guide to fast similarity search</p>
+          <h2>Learn HNSW by watching it work.</h2>
+          <p className="hero-sub">Start with dots connected by lines. Place a search point, watch the algorithm move toward nearby dots, and learn one idea at a time. No vector-database background needed.</p>
           <div className="landing-actions">
             <a className="button primary" href="/playground" onClick={(e) => { e.preventDefault(); onOpenPlayground(); }}>Open playground <span aria-hidden="true">→</span></a>
-            <a className="button quiet" href="/learn" onClick={(e) => { e.preventDefault(); navigate("learn"); }}>Read the field guide</a>
+            <a className="button quiet" href="/learn" onClick={(e) => { e.preventDefault(); navigate("learn"); }}>Learn from the beginning</a>
           </div>
-          <p className="hero-footnote">Deterministic datasets · step-level replay · exact recall comparison</p>
+          <p className="hero-footnote">Beginner guide · step-by-step replay · real search results</p>
         </div>
         <div className="hero-figure" aria-label="A query descending through an HNSW graph">
           <div className="figure-head"><span>Search trace</span><code>ef = 8 · k = 3</code></div>
@@ -74,9 +74,9 @@ function Home({ navigate, onOpenPlayground }: { navigate: (route: Route) => void
         </div>
       </section>
       <section className="landing-index" aria-label="What you can explore">
-        <div><span className="index-num">01</span><h3>Build the hierarchy</h3><p>Watch insertion choose levels, candidates, and graph connections.</p></div>
-        <div><span className="index-num">02</span><h3>Trace a query</h3><p>Replay the greedy descent and layer-zero beam search one decision at a time.</p></div>
-        <div><span className="index-num">03</span><h3>Measure the trade-off</h3><p>Sweep M and efSearch against exact nearest-neighbor results.</p></div>
+        <div><span className="index-num">01</span><h3>Understand the map</h3><p>See why nearby dots are connected and why sparse upper layers act like express lanes.</p></div>
+        <div><span className="index-num">02</span><h3>Follow one search</h3><p>Move forward and backward through every decision in plain language.</p></div>
+        <div><span className="index-num">03</span><h3>Change one setting</h3><p>Open an explanation beside any control, then measure the speed and accuracy trade-off.</p></div>
       </section>
     </main>
   );
@@ -126,18 +126,18 @@ export default function App() {
     <div className={`app route-${route}`}>
       <header className="topbar">
         <a className="brand" href="/" aria-label="HNSW Explorer home" onClick={(e) => { e.preventDefault(); navigate("home"); }}><Mark /><span>HNSW</span><span className="brand-muted">Explorer</span></a>
-        <nav className="page-nav" aria-label="Main navigation"><a href="/learn" aria-current={route === "learn" ? "page" : undefined} onClick={(e) => { e.preventDefault(); navigate("learn"); }}>Field guide</a><a href="/playground" aria-current={route === "playground" ? "page" : undefined} onClick={(e) => { e.preventDefault(); openPlayground(); }}>Playground</a></nav>
+        <nav className="page-nav" aria-label="Main navigation"><a href="/learn" aria-current={route === "learn" ? "page" : undefined} onClick={(e) => { e.preventDefault(); navigate("learn"); }}>Learn</a><a href="/playground" aria-current={route === "playground" ? "page" : undefined} onClick={(e) => { e.preventDefault(); openPlayground(); }}>Playground</a></nav>
         <div className="spacer" />
         {route === "playground" && <div className="stat-strip" aria-label="Graph summary"><span><b>{stats.live}</b> vectors</span><span><b>{stats.total ? stats.topLayer + 1 : 0}</b> layers</span><span><b>{stats.edges}</b> edges</span><span className="stat-param"><b>M {state.params.M}</b> · ef {state.params.efSearch}</span></div>}
         <ThemeToggle />
       </header>
-      {route === "home" ? <Home navigate={navigate} onOpenPlayground={openPlayground} /> : route === "learn" ? <ExplanationPage onOpenPlayground={() => navigate("playground")} /> : (
+      {route === "home" ? <Home navigate={navigate} onOpenPlayground={openPlayground} /> : route === "learn" ? <ExplanationPage onOpenPlayground={openPlayground} /> : (
         <main className="playground-layout">
           <section className="workbench" aria-label="Graph visualization and replay"><div className="canvas-stage"><GraphCanvas /><CanvasToolbar /></div><Transport /><Explainer onOpenExplanation={() => navigate("learn")} /></section>
           <aside className="inspector"><div className="inspector-head"><p className="eyebrow">Experiment controls</p><div className="tabs" role="tablist" aria-label="Playground panels">{TABS.map(([id, label, title]) => <button key={id} role="tab" title={title} aria-selected={activeTab === id} aria-controls="inspector-panel" onClick={() => dispatch({ type: "setRightTab", tab: id })}>{label}</button>)}</div></div><div id="inspector-panel" className="inspector-panel" role="tabpanel"><Panel /></div></aside>
         </main>
       )}
-      <div className="mobile-gate" role="alert"><div><Mark /><p className="eyebrow">Desktop instrument</p><h2>The graph needs more room.</h2><p>Open HNSW Explorer on a desktop or laptop with a viewport at least 900 px wide.</p></div></div>
+      <div className="mobile-gate" role="alert"><div><Mark /><p className="eyebrow">Desktop instrument</p><h2>The graph needs more room.</h2><p>Open the interactive playground on a desktop or laptop with a viewport at least 900 px wide.</p><a className="button secondary" href="/learn" onClick={(e) => { e.preventDefault(); navigate("learn"); }}>Read the mobile-friendly guide</a></div></div>
     </div>
   );
 }

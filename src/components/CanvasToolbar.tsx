@@ -35,7 +35,6 @@ export function CanvasToolbar() {
       <div className="tool-selector" role="group" aria-label="Canvas tool">
         {(['search', 'insert', 'select'] as const).map((item) => <button key={item} className="tool-btn" aria-pressed={tool === item} onClick={() => dispatch({ type: 'setTool', tool: item })} title={item === 'search' ? 'Place a query' : item === 'insert' ? 'Add a vector' : 'Inspect or move a node'}><ToolIcon tool={item}/><span>{item === 'select' ? 'Inspect' : item}</span></button>)}
       </div>
-      <p className="toolbar-hint">{tool === 'search' ? 'Click to place a query' : tool === 'insert' ? 'Click to add a vector' : 'Click a node to inspect · drag to move'}</p>
     </div>
 
     {trace && <div className="canvas-overlay bl"><div className="legend" aria-label="Trace legend">{LEGEND.map(([color, label, title]) => <span key={label} title={title}><i style={{ background: `var(${color})` }} />{label}</span>)}</div></div>}

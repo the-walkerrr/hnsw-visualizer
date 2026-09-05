@@ -88,7 +88,7 @@ export function LabPanel() {
               always lands on the true nearest neighbour, because a point has few directions to hide
               in; ef is the dial that saves you in <i>high</i> dimensions, where distances concentrate
               and a greedy walk goes wrong all the time. On this canvas the honest way to see the
-              curve move is to make the graph worse: drop M to 2 in the Params tab (≈86% → 91% on
+              curve move is to make the graph worse: drop M to 2 in the Tune tab (≈86% → 91% on
               clusters), or switch to the two-moons or spiral shape, where the manifold does the
               work high dimensionality would.
             </div>

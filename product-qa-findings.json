@@ -1,0 +1,158 @@
+{
+  "audit_date": "2026-09-05",
+  "retest_date": "2026-09-06",
+  "target": "http://localhost:5173/ (local Vite development build)",
+  "auditor_runtime": "Codex desktop, isolated in-app Chromium browser, black-box first-user pass followed by source-assisted diagnosis",
+  "initial_overall_score": 81.5,
+  "overall_score": 88.3,
+  "confidence": "Medium",
+  "dimension_scores": {
+    "first_run": 4.5,
+    "navigation": 4.2,
+    "core_functionality": 4.5,
+    "forms_input": 4.4,
+    "feedback_recovery": 4.0,
+    "state_coverage": 4.5,
+    "content_clarity": 4.5,
+    "visual_consistency": 4.5,
+    "responsive_platform": 4.2,
+    "accessibility": 4.2,
+    "performance_reliability": 4.2,
+    "trust_privacy": 4.8
+  },
+  "coverage": {
+    "cold_start": "complete",
+    "signed_out": "not_applicable",
+    "signed_in": "not_applicable",
+    "critical_flows": "complete",
+    "responsive_platform": "complete",
+    "accessibility": "complete"
+  },
+  "findings": [
+    {
+      "id": "A11Y-001",
+      "title": "Node inspection and vector movement are pointer-only",
+      "severity": "P2",
+      "confidence": "Confirmed",
+      "critical_path": false,
+      "status": "resolved",
+      "resolution_evidence": "The Inspect panel now exposes a labelled node selector and labelled X/Y coordinate fields with a Move node action. Browser retest selected node 0 and moved it to [400, 200] without canvas interaction; the update trace was generated.",
+      "location": "Playground, graph canvas, Inspect flow",
+      "preconditions": "A populated graph is visible and Inspect mode is selected.",
+      "steps_to_reproduce": [
+        "Navigate to Playground.",
+        "Use keyboard-only navigation to select Inspect.",
+        "Attempt to select a graph node or change its vector without clicking or dragging the SVG."
+      ],
+      "expected": "A keyboard and non-drag single-pointer alternative should allow selecting a node and changing its position.",
+      "observed": "The SVG is exposed as one image named 'HNSW graph'; its nodes are not focusable controls. The UI instructs users to drag a node, and no coordinate fields, node list, or move controls are available.",
+      "evidence": [
+        "Keyboard search was reachable, but node selection could only be completed by a coordinate click and movement only by dragging.",
+        "src/components/GraphCanvas.tsx:301-315 binds pointer events to an SVG with role=img and no keyboard interaction."
+      ],
+      "user_impact": "Keyboard-only users and users who cannot perform precise dragging cannot complete the inspect/update learning flow.",
+      "fix_direction": "Add a keyboard-operable node list or make nodes individually focusable, and provide coordinate inputs or directional move buttons as a drag alternative.",
+      "retest": "From a fresh Playground session, select and move a node, then verify its update trace, using keyboard only and without drag."
+    },
+    {
+      "id": "A11Y-002",
+      "title": "Small muted text does not meet normal-text contrast",
+      "severity": "P2",
+      "confidence": "Confirmed",
+      "critical_path": false,
+      "status": "resolved",
+      "resolution_evidence": "The muted text token is now #70726b in light mode and #858a80 in dark mode. Browser-computed contrast measured 4.70:1 on #fbfbf9 and 5.04:1 on #171816.",
+      "location": "Landing page and repeated muted labels/hints across the product",
+      "preconditions": "Light/system theme rendering a light color scheme.",
+      "steps_to_reproduce": [
+        "Open the landing page in the light theme.",
+        "Inspect the eyebrow and footnote text colors against the page background.",
+        "Calculate WCAG contrast for #888a82 on #fbfbf9."
+      ],
+      "expected": "Normal text below large-text thresholds should reach at least 4.5:1 contrast.",
+      "observed": "The 10-10.5px muted text uses #888a82 on #fbfbf9, producing approximately 3.38:1 contrast.",
+      "evidence": [
+        "Computed styles: rgb(136, 138, 130) on rgb(251, 251, 249), 10-10.5px, weight 400-600.",
+        "src/styles.css:12 defines --text-3 as #888a82 and applies it throughout small labels and hints."
+      ],
+      "user_impact": "Low-vision users and users on lower-quality or glare-affected displays may miss labels, hints, legends, and status metadata.",
+      "fix_direction": "Darken --text-3 for text use, or split the token so decorative strokes can remain light while small text reaches 4.5:1.",
+      "retest": "All normal-size uses of the muted text token measure at least 4.5:1 in each theme."
+    },
+    {
+      "id": "CONTENT-001",
+      "title": "Learning content refers to old tab names",
+      "severity": "P2",
+      "confidence": "Confirmed",
+      "critical_path": false,
+      "status": "resolved",
+      "resolution_evidence": "All user-facing obsolete tab names were updated to Tune, Trace, and Results. A rendered-copy regression assertion and repository search cover the stale forms.",
+      "location": "Learn chapters and Lab explanatory copy",
+      "preconditions": "The user is following a tutorial or reading a Lab result.",
+      "steps_to_reproduce": [
+        "Open Learn.",
+        "Read the local-minimum, layers, pruning, or production chapters.",
+        "Compare the named destination tabs with the Playground tab bar."
+      ],
+      "expected": "Instructions should use the visible tab names: Tune, Trace, and Results.",
+      "observed": "Multiple passages say Params, Code, or Metrics even though the current tabs are Tune, Trace, and Results. Lab output also tells the user to use the Params tab.",
+      "evidence": [
+        "Visible Playground tabs: Build, Tune, Trace, Inspect, Results, Lab.",
+        "src/App.tsx:17-23 defines the current names.",
+        "src/lessons/lessons.ts:157,258,374,770 and src/components/panels/LabPanel.tsx:91 use stale names."
+      ],
+      "user_impact": "A learner following exact instructions hesitates or searches for tabs that do not exist, weakening trust in otherwise strong educational content.",
+      "fix_direction": "Replace stale labels with the current user-facing tab names and add a copy-level regression test for known obsolete labels.",
+      "retest": "A repository-wide and rendered-page check finds no user-facing references to Params, Code, or Metrics as Playground tab names."
+    },
+    {
+      "id": "STATE-001",
+      "title": "Refreshing silently discards the entire experiment",
+      "severity": "P2",
+      "confidence": "Confirmed",
+      "critical_path": false,
+      "status": "resolved",
+      "resolution_evidence": "Versioned sessionStorage persistence now restores settings, graph Maps, selection, active panel, and trace data while safely pausing playback. Browser retest restored selected node 0 at X=400 after reload; serialization round-trip tests cover graph and trace Maps.",
+      "location": "Playground session and browser refresh/reopen",
+      "preconditions": "The user has changed settings, inserted or moved a vector, or generated a trace.",
+      "steps_to_reproduce": [
+        "Open Playground and change M from 5 to 2.",
+        "Insert a vector so the count changes from 48 to 49, or move a node.",
+        "Refresh the page."
+      ],
+      "expected": "Either the in-progress experiment should be restored, or the UI should clearly state that the playground is temporary before a refresh causes loss.",
+      "observed": "The graph, settings, selected node, trace, and vector count all return to defaults without warning. Theme preference persists, which makes the lack of experiment persistence less obvious.",
+      "evidence": [
+        "Observed vector count 49 and completed insert trace before refresh; count returned to 48 and M returned to 5 after refresh.",
+        "src/state/StoreProvider.tsx:5 initializes reducer state on every load and contains no state restoration path."
+      ],
+      "user_impact": "Users can lose a multi-step learning setup or comparison and must reconstruct it manually.",
+      "fix_direction": "Persist serializable experiment state per session, or add explicit save/share/reset controls and a clear ephemeral-state warning.",
+      "retest": "After changing settings and graph state, refresh restores the experiment exactly or presents an explicit, user-approved reset path."
+    },
+    {
+      "id": "RESP-001",
+      "title": "The sub-900px gate blocks the landing page and text-only guide, not only the graph",
+      "severity": "P2",
+      "confidence": "Confirmed",
+      "critical_path": false,
+      "status": "resolved",
+      "resolution_evidence": "The sub-900px gate is scoped to route-playground. Landing and Learn receive single-column mobile reflow rules, while the Playground gate links directly to the mobile-friendly guide. The route/render contract and production CSS were verified; the browser runtime did not permit viewport emulation for a second visual capture.",
+      "location": "All routes below 900 CSS pixels",
+      "preconditions": "Viewport width is 899px or narrower.",
+      "steps_to_reproduce": [
+        "Open the site at a 390x844 viewport.",
+        "Attempt to access the landing page or Learn route."
+      ],
+      "expected": "The graph workbench may require desktop width, but the product introduction and text-first Learn content should remain available when they can reflow safely.",
+      "observed": "A 'The graph needs more room' gate replaces every route and offers no link to read the guide or continue with a limited experience.",
+      "evidence": [
+        "390x844 rendered only the desktop-instrument gate.",
+        "src/styles.css:328-331 hides every app child except the gate below 900px."
+      ],
+      "user_impact": "Mobile and narrow-window visitors cannot evaluate the product, read its tutorial, or bookmark learning material until they switch devices.",
+      "fix_direction": "Apply the width gate only to the Playground workbench; let landing and Learn routes reflow, with a clear desktop CTA for interactive graph exercises.",
+      "retest": "At 390px, landing and Learn are readable and navigable; Playground shows a focused desktop-width limitation without hiding the rest of the site."
+    }
+  ]
+}
