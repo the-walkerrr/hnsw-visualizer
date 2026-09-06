@@ -1,6 +1,6 @@
 import { WORLD } from '../../hnsw/constants'
 import { liveNodes } from '../../hnsw/graph'
-import { PRESETS, preset, type PresetId } from '../../hnsw/presets'
+import { PRESETS, type PresetId } from '../../hnsw/presets'
 import { makeRng } from '../../hnsw/rng'
 import { useApp, useDispatch, useScript } from '../../state/store'
 import { ControlHelp } from './ControlHelp'
@@ -15,21 +15,19 @@ export function BuildPanel() {
   const script = useScript()
   const { dataset, k } = state
   const vectorCount = liveNodes(state.graph).length
-  const currentPreset = preset(dataset.id)
   const rebuild = (id = dataset.id, n = vectorCount || dataset.n) => script([{ t: 'preset', id, n, seed: dataset.seed }])
   const randomPoint = () => { const rng = makeRng((Date.now() ^ state.graph.nextSeq) >>> 0); return [40 + rng() * (WORLD.width - 80), 40 + rng() * (WORLD.height - 80)] as const }
 
   return <div className="pane-scroll">
-    <div className="panel-intro"><h2>Start an experiment</h2><p>1. Pick some dots. 2. Choose Search or Insert. 3. Click the canvas or use a random point.</p></div>
-    <div className="section-title">Dataset</div>
-    <div className="field"><div className="field-head"><label htmlFor="preset">Shape</label></div><select id="preset" value={dataset.id} onChange={(e) => rebuild(e.target.value as PresetId)}>{PRESETS.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><p className="hint">{currentPreset.blurb}</p><ControlHelp guide="dataset"/></div>
+    <div className="panel-intro"><p className="section-kicker">Start here</p><h2>Find the closest dots.</h2><p>Choose a spot on the canvas, or let us pick one.</p></div>
+    <button className="button primary run-search" disabled={!vectorCount} onClick={() => script([{ t: 'tool', tool: 'search' }, { t: 'search', at: [...randomPoint()] }])}>Run a search <span aria-hidden="true">→</span></button>
+    <p className="search-next">{vectorCount ? 'Then press Play below the graph to watch it work.' : 'Add dots below to start searching.'}</p>
+    <RangeField id="k" label="Results requested (k)" value={k} min={1} max={20} hint="How many close matches do you want?" guide="k" onChange={(value) => dispatch({ type: 'setK', k: value })}/>
+    <details className="advanced-details" open={vectorCount === 0 ? true : undefined}><summary>Change the dots <span>{vectorCount} dots</span></summary><div className="details-body">
+    <div className="field"><div className="field-head"><label htmlFor="preset">Shape</label></div><select id="preset" value={dataset.id} onChange={(e) => rebuild(e.target.value as PresetId)}>{PRESETS.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><ControlHelp guide="dataset"/></div>
     <RangeField id="count" label="Vectors" value={vectorCount} min={0} max={400} hint="Use 24–80 while learning so individual routes stay visible." guide="vectors" onChange={(n) => rebuild(dataset.id, n)}/>
-    <div className="row"><button className="button secondary compact" onClick={() => rebuild()}>Rebuild same graph</button><button className="button ghost compact" onClick={() => script([{ t: 'clear' }])}>Clear</button></div>
-
-    <div className="section-title">Operation</div>
-    <div className="operation-grid"><button className="operation-button" onClick={() => script([{ t: 'tool', tool: 'search' }, { t: 'search', at: [...randomPoint()] }])}><span>Search</span><small>Place a random query</small><b aria-hidden="true">→</b></button><button className="operation-button" onClick={() => script([{ t: 'tool', tool: 'insert' }, { t: 'insert', at: [...randomPoint()] }])}><span>Insert</span><small>Add a random vector</small><b aria-hidden="true">＋</b></button></div>
-    <RangeField id="k" label="Results requested (k)" value={k} min={1} max={20} hint="How many nearest dots the search should return." guide="k" onChange={(value) => dispatch({ type: 'setK', k: value })}/>
-
-    <button className="advanced-link" onClick={() => dispatch({ type: 'setRightTab', tab: 'params' })}>Tune search and graph settings <span aria-hidden="true">→</span></button>
+    <div className="row"><button className="button secondary compact" onClick={() => script([{ t: 'tool', tool: 'insert' }, { t: 'insert', at: [...randomPoint()] }])}>Add one dot</button><button className="button ghost compact" onClick={() => script([{ t: 'clear' }])}>Clear dots</button></div>
+    </div></details>
+    <div className="explore-tip"><b>Curious about accuracy?</b><p>Try a different search effort in Tune, then run another search.</p><button className="advanced-link" onClick={() => dispatch({ type: 'setRightTab', tab: 'params' })}>Adjust search effort →</button></div>
   </div>
 }

@@ -15,12 +15,9 @@ import { graphStats } from "./hnsw/metrics";
 import { useApp, useDispatch, useViewGraph, type RightTab } from "./state/store";
 
 const TABS: Array<[RightTab, string, string]> = [
-  ["build", "Build", "Choose a dataset and run an operation"],
+  ["build", "Explore", "Choose dots and run a search"],
   ["params", "Tune", "Change graph and query parameters"],
-  ["code", "Trace", "Follow the executing pseudocode"],
-  ["node", "Inspect", "Inspect and modify a selected node"],
   ["metrics", "Results", "Compare cost, recall, and graph structure"],
-  ["lab", "Lab", "Measure parameter trade-offs"],
 ];
 
 const PANELS: Record<RightTab, () => React.JSX.Element> = {
@@ -96,6 +93,8 @@ export default function App() {
   }, []);
   const openPlayground = useCallback(() => {
     if (state.graph.nodes.size === 0) dispatch({ type: "script", ops: [{ t: "preset", id: state.dataset.id, n: state.dataset.n, seed: state.dataset.seed }, { t: "tool", tool: "search" }] });
+    dispatch({ type: "setRightTab", tab: "build" });
+    dispatch({ type: "setTool", tool: "search" });
     navigate("playground");
   }, [dispatch, navigate, state.dataset, state.graph.nodes.size]);
 
@@ -128,13 +127,13 @@ export default function App() {
         <a className="brand" href="/" aria-label="HNSW Explorer home" onClick={(e) => { e.preventDefault(); navigate("home"); }}><Mark /><span>HNSW</span><span className="brand-muted">Explorer</span></a>
         <nav className="page-nav" aria-label="Main navigation"><a href="/learn" aria-current={route === "learn" ? "page" : undefined} onClick={(e) => { e.preventDefault(); navigate("learn"); }}>Learn</a><a href="/playground" aria-current={route === "playground" ? "page" : undefined} onClick={(e) => { e.preventDefault(); openPlayground(); }}>Playground</a></nav>
         <div className="spacer" />
-        {route === "playground" && <div className="stat-strip" aria-label="Graph summary"><span><b>{stats.live}</b> vectors</span><span><b>{stats.total ? stats.topLayer + 1 : 0}</b> layers</span><span><b>{stats.edges}</b> edges</span><span className="stat-param"><b>M {state.params.M}</b> · ef {state.params.efSearch}</span></div>}
+        {route === "playground" && <div className="stat-strip" aria-label="Graph summary"><span><b>{stats.live}</b> dots</span><span><b>{stats.total ? stats.topLayer + 1 : 0}</b> layers</span></div>}
         <ThemeToggle />
       </header>
       {route === "home" ? <Home navigate={navigate} onOpenPlayground={openPlayground} /> : route === "learn" ? <ExplanationPage onOpenPlayground={openPlayground} /> : (
         <main className="playground-layout">
           <section className="workbench" aria-label="Graph visualization and replay"><div className="canvas-stage"><GraphCanvas /><CanvasToolbar /></div><Transport /><Explainer onOpenExplanation={() => navigate("learn")} /></section>
-          <aside className="inspector"><div className="inspector-head"><p className="eyebrow">Experiment controls</p><div className="tabs" role="tablist" aria-label="Playground panels">{TABS.map(([id, label, title]) => <button key={id} role="tab" title={title} aria-selected={activeTab === id} aria-controls="inspector-panel" onClick={() => dispatch({ type: "setRightTab", tab: id })}>{label}</button>)}</div></div><div id="inspector-panel" className="inspector-panel" role="tabpanel"><Panel /></div></aside>
+          <aside className="inspector"><div className="inspector-head"><div className="panel-navigation"><div className="tabs" role="tablist" aria-label="Playground panels">{TABS.map(([id, label, title]) => <button key={id} id={`tab-${id}`} role="tab" title={title} aria-selected={activeTab === id} aria-controls="inspector-panel" onClick={() => dispatch({ type: "setRightTab", tab: id })}>{label}</button>)}</div><select className="more-tools" aria-label="More tools" value={TABS.some(([id]) => id === activeTab) ? '' : activeTab} onChange={(e) => dispatch({ type: "setRightTab", tab: e.target.value as RightTab })}><option value="" disabled>More</option><option value="node">Inspect a dot</option><option value="code">Algorithm steps</option><option value="lab">Experiments</option></select></div></div><div id="inspector-panel" className="inspector-panel" role={TABS.some(([id]) => id === activeTab) ? "tabpanel" : "region"} aria-label={TABS.find(([id]) => id === activeTab)?.[1] ?? "More tools"}><Panel /></div></aside>
         </main>
       )}
       <div className="mobile-gate" role="alert"><div><Mark /><p className="eyebrow">Desktop instrument</p><h2>The graph needs more room.</h2><p>Open the interactive playground on a desktop or laptop with a viewport at least 900 px wide.</p><a className="button secondary" href="/learn" onClick={(e) => { e.preventDefault(); navigate("learn"); }}>Read the mobile-friendly guide</a></div></div>

@@ -9,8 +9,7 @@ export function ControlHelp({ guide: key }: { guide: ControlGuideKey }) {
       <div className="control-help-body">
         <p>{guide.plain}</p>
         <dl>
-          <div><dt>Decrease / off</dt><dd>{guide.lower}</dd></div>
-          <div><dt>Increase / on</dt><dd>{guide.higher}</dd></div>
+          {guide.inputs.map((input) => <div key={input.label}><dt>{input.label}</dt><dd>{input.explanation}</dd></div>)}
         </dl>
         <p className="control-timing">{guide.when}</p>
         <a href={href} onClick={(event) => {

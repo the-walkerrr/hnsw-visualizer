@@ -1,98 +1,83 @@
 import { useEffect } from 'react'
-import { LESSONS, type Block } from '../lessons/lessons'
-import { CONTROL_GUIDES, type ControlGuide, type ControlGuideKey } from '../lessons/controlGuides'
-import { useScript } from '../state/store'
-import { RichText } from './RichText'
-
-function BlockView({ block, onOpenPlayground }: { block: Block; onOpenPlayground: () => void }) {
-  const script = useScript()
-  if (block.t === 'p') return <p><RichText text={block.text} /></p>
-  if (block.t === 'ul') return <ul>{block.items.map((item, i) => <li key={i}><RichText text={item} /></li>)}</ul>
-  if (block.t === 'note') return <aside className={`note${block.tone && block.tone !== 'plain' ? ` ${block.tone}` : ''}`}><RichText text={block.text} /></aside>
-  if (block.t === 'math') return <div className="math"><RichText text={block.text} /></div>
-  if (block.t === 'kv') return <dl className="kv explain-kv">{block.pairs.map(([key, value]) => <div key={key}><dt>{key}</dt><dd><RichText text={value} /></dd></div>)}</dl>
-  return <button className="try" onClick={() => { script(block.ops); onOpenPlayground() }}><span className="try-label">Run in playground</span><span><RichText text={block.text} /></span><span className="arrow" aria-hidden="true">→</span></button>
-}
-
-const CONTROL_GROUPS: Array<{ title: string; keys: ControlGuideKey[] }> = [
-  { title: 'Set up the example', keys: ['dataset', 'vectors', 'k'] },
-  { title: 'The three settings to learn first', keys: ['M', 'efConstruction', 'efSearch'] },
-  { title: 'Distance and layers', keys: ['metric', 'mL', 'seed'] },
-  { title: 'Advanced edge rules', keys: ['Mmax', 'Mmax0', 'neighborRule', 'extendCandidates', 'keepPrunedConnections'] },
-]
+import { CONTROL_GUIDES, type ControlGuide } from '../lessons/controlGuides'
 
 function ControlCard({ guide }: { guide: ControlGuide }) {
-  return <article id={guide.id} className="control-card">
-    <h3>{guide.label}</h3>
-    <p>{guide.plain}</p>
-    <div className="direction-grid">
-      <div><span>Decrease / off</span><p>{guide.lower}</p></div>
-      <div><span>Increase / on</span><p>{guide.higher}</p></div>
+  return <details id={guide.id} className="learn-disclosure control-reference">
+    <summary>{guide.label}</summary>
+    <div className="disclosure-content">
+      <p>{guide.plain}</p>
+      <dl>{guide.inputs.map((input) => <div key={input.label}><dt>{input.label}</dt><dd>{input.explanation}</dd></div>)}</dl>
+      <p className="hint">{guide.when}</p>
+      {guide.learnMore && <a className="control-deep-link" href={guide.learnMore.href}>{guide.learnMore.label} →</a>}
     </div>
-    <p className="control-when">{guide.when}</p>
-  </article>
+  </details>
 }
 
 export function ExplanationPage({ onOpenPlayground }: { onOpenPlayground: () => void }) {
   useEffect(() => {
-    const id = decodeURIComponent(window.location.hash.slice(1))
-    if (!id) return
-    const frame = window.requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ block: 'start' }))
-    return () => window.cancelAnimationFrame(frame)
+    const reveal = () => {
+      let id: string
+      try { id = decodeURIComponent(window.location.hash.slice(1)) } catch { return }
+      const target = document.getElementById(id)
+      if (!target) return
+      let parent: HTMLElement | null = target
+      while (parent) {
+        if (parent instanceof HTMLDetailsElement) parent.open = true
+        parent = parent.parentElement
+      }
+      target.scrollIntoView({ block: 'start' })
+    }
+    const frame = window.requestAnimationFrame(reveal)
+    window.addEventListener('hashchange', reveal)
+    return () => { window.cancelAnimationFrame(frame); window.removeEventListener('hashchange', reveal) }
   }, [])
 
-  return <main className="explanation-page">
-    <header className="learn-hero">
-      <div><p className="eyebrow">Learn HNSW from zero</p><h1>A fast search made from dots and shortcuts.</h1></div>
-      <div><p>No prior knowledge of vector databases is needed. Start with the five-minute picture, try one search, and only then move into the optional deeper chapters.</p><button className="button primary" onClick={onOpenPlayground}>Try the playground <span aria-hidden="true">→</span></button></div>
-    </header>
-    <div className="learn-layout">
-      <nav className="learn-toc" aria-label="Guide contents"><span className="toc-label">Start here</span><a href="#start-here"><span>01</span>The five-minute picture</a><a href="#parameter-guide"><span>02</span>Every playground control</a><span className="toc-label toc-group">Go deeper</span>{LESSONS.map((lesson, i) => <a key={lesson.title} href={`#lesson-${i + 1}`}><span>{String(i + 1).padStart(2, '0')}</span>{lesson.title}</a>)}</nav>
-      <div className="learn-content">
-        <section id="start-here" className="beginner-start">
-          <p className="section-kicker">The five-minute picture</p>
-          <h2>First, what problem are we solving?</h2>
-          <p className="beginner-lead">Imagine a music app with millions of songs. A new song arrives, and you want the five songs that sound most similar. Checking every song would work, but it gets slow. <strong>HNSW builds a map of shortcuts so the search can inspect only a small part of the collection.</strong></p>
+  return <main className="explanation-page beginner-guide">
+    <div className="guide-wrap">
+      <header className="guide-hero">
+        <p className="section-kicker">HNSW, in two minutes</p>
+        <h1>Find nearby things.<br />Skip most of the work.</h1>
+        <p>Imagine finding songs similar to one you love. HNSW uses a map of connections to find close matches quickly.</p>
+        <nav className="guide-shortcuts" aria-label="Guide contents"><a href="#start-here">The idea ↓</a><a href="#first-search">Try it ↓</a><a href="#parameter-guide">Controls ↓</a></nav>
+      </header>
 
-          <div className="idea-steps" aria-label="HNSW in four steps">
-            <div><span>1</span><h3>Turn items into dots</h3><p>A vector is just a list of numbers that describes an item. Similar items become nearby dots.</p></div>
-            <div><span>2</span><h3>Connect nearby dots</h3><p>Each dot stores links to a few useful neighbors. Together the links form a graph, like roads between towns.</p></div>
-            <div><span>3</span><h3>Add express lanes</h3><p>Sparse upper layers make long jumps. The bottom layer contains every dot and handles the final, precise search.</p></div>
-            <div><span>4</span><h3>Walk toward the query</h3><p>Start high, follow links that get closer, drop a layer, and repeat. Return the nearest dots found.</p></div>
-          </div>
+      <section id="start-here" className="guide-section">
+        <div className="guide-section-heading"><span>01</span><h2>It’s a map with shortcuts.</h2></div>
+        <div className="concept-cards">
+          <article><div className="concept-art" aria-hidden="true"><svg viewBox="0 0 240 100"><g className="concept-dots"><circle cx="55" cy="45" r="7"/><circle cx="80" cy="65" r="7"/><circle cx="91" cy="32" r="7"/><circle cx="167" cy="43" r="7"/><circle cx="188" cy="65" r="7"/><circle cx="199" cy="30" r="7"/></g></svg></div><h3>Dots are items</h3><p>Each dot is a song, photo, or piece of text. Similar items sit close together. These dots are called <b>vectors</b>.</p></article>
+          <article><div className="concept-art" aria-hidden="true"><svg viewBox="0 0 240 100"><path className="concept-lines" d="m42 65 43-35 35 40 39-41 39 28M85 30l74-1M42 65l78 5 78-13"/><g className="concept-dots"><circle cx="42" cy="65" r="6"/><circle cx="85" cy="30" r="6"/><circle cx="120" cy="70" r="6"/><circle cx="159" cy="29" r="6"/><circle cx="198" cy="57" r="6"/></g></svg></div><h3>Lines are routes</h3><p>Lines connect dots. A search follows these routes toward your target instead of checking every item.</p></article>
+          <article><div className="concept-art" aria-hidden="true"><svg viewBox="0 0 240 100"><path className="concept-lines" d="M35 75h170M65 25h110M65 25v50M175 25v50"/><path className="concept-route" d="M65 25h110v50h30"/><g className="concept-dots"><circle cx="65" cy="25" r="6"/><circle cx="175" cy="25" r="6"/><circle cx="35" cy="75" r="5"/><circle cx="65" cy="75" r="5"/><circle cx="100" cy="75" r="5"/><circle cx="140" cy="75" r="5"/><circle cx="175" cy="75" r="5"/><circle cx="205" cy="75" r="5"/></g></svg></div><h3>Layers add shortcuts</h3><p>Upper layers make big jumps. The bottom layer holds every dot and finishes the search nearby.</p></article>
+        </div>
+        <p className="guide-takeaway">The trade-off: searching fewer dots is faster, but it can miss a close match.</p>
+      </section>
 
-          <aside className="analogy-card">
-            <span>One useful analogy</span>
-            <p>Think of finding a café in an unfamiliar city. A highway gets you into the right neighborhood; main roads get you closer; local streets finish the trip. HNSW’s layers do the same job for similar items.</p>
-          </aside>
+      <section id="first-search" className="guide-section guide-try">
+        <div>
+          <div className="guide-section-heading"><span>02</span><h2>Watch one search.</h2></div>
+          <ol className="quick-steps"><li>Open the playground and click <b>Run a search</b>.</li><li>Press <b>Play</b>, or use the arrows to follow each step.</li><li>Open <b>Results</b> to see how many close matches it found.</li></ol>
+          <div className="guide-colors"><span><i className="query-symbol">＋</i> Your search</span><span><i className="result-symbol" /> Matches found</span></div>
+        </div>
+        <button className="button primary" onClick={onOpenPlayground}>Open playground <span aria-hidden="true">→</span></button>
+      </section>
 
-          <h3 className="mini-title">Only four words matter at first</h3>
-          <dl className="beginner-terms">
-            <div><dt>vector</dt><dd>One stored item, represented as numbers. On this site it is drawn as a dot.</dd></div>
-            <div><dt>distance</dt><dd>A score for how different two vectors are. Smaller distance means more similar.</dd></div>
-            <div><dt>k</dt><dd>How many nearest items you want back.</dd></div>
-            <div><dt>recall</dt><dd>How many of the truly nearest items the fast search actually found.</dd></div>
-          </dl>
+      <section id="parameter-guide" className="guide-section">
+        <div className="guide-section-heading"><span>03</span><h2>Change one thing at a time.</h2></div>
+        <p className="guide-section-intro">Start with the defaults. When you’re curious, try these in the playground.</p>
+        <div className="starter-settings">
+          <div><b>Results requested · k</b><p>How many matches you want. Try 1, then 5.</p></div>
+          <div><b>Search effort · efSearch</b><p>How many possible matches to keep. More effort can find better answers.</p></div>
+          <div><b>Connections · M</b><p>How many routes a new dot chooses. More routes use more memory.</p></div>
+        </div>
+        <details className="learn-disclosure reference-library"><summary>All controls and their inputs <span>Optional reference</span></summary><div className="disclosure-content">{Object.values(CONTROL_GUIDES).map((guide) => <ControlCard key={guide.id} guide={guide} />)}</div></details>
+      </section>
 
-          <div className="first-experiment">
-            <div><span>Try this first</span><h3>Run one search before changing settings</h3><p>Open the playground, choose <b>Search</b>, click near a group of dots, then use the step buttons below the graph. Green rings are returned results; the query is the pink cross.</p></div>
-            <button className="button primary" onClick={onOpenPlayground}>Run a first search <span aria-hidden="true">→</span></button>
-          </div>
-        </section>
-
-        <section id="parameter-guide" className="parameter-guide">
-          <p className="section-kicker">Playground control guide</p>
-          <h2>What every control changes</h2>
-          <p className="section-intro">You do not need to tune everything. Start with <b>M</b>, <b>efConstruction</b>, and <b>efSearch</b>. Every control below explains the low/high trade-off and whether it rebuilds the graph.</p>
-          {CONTROL_GROUPS.map((group) => <section className="control-group" key={group.title}><h3>{group.title}</h3><div className="control-card-grid">{group.keys.map((key) => <ControlCard key={key} guide={CONTROL_GUIDES[key]}/>)}</div></section>)}
-        </section>
-
-        <div className="deep-dive-heading"><p className="section-kicker">Optional deep dive</p><h2>See the algorithm step by step</h2><p>The chapters below add detail in small pieces. Use each “Run in playground” example when the words feel abstract.</p></div>
-        {LESSONS.map((lesson, lessonIndex) => <article id={`lesson-${lessonIndex + 1}`} className="learn-lesson" key={lesson.title}>
-          <header><span className="chapter-num">{String(lessonIndex + 1).padStart(2, '0')}</span><div><h2>{lesson.title}</h2><p className="lesson-summary">{lesson.summary}</p></div></header>
-          {lesson.steps.map((step, stepIndex) => <section className="learn-step" key={step.title}><h3><span>{stepIndex + 1}</span>{step.title}</h3>{step.blocks.map((block, i) => <BlockView key={i} block={block} onOpenPlayground={onOpenPlayground} />)}</section>)}
-        </article>)}
-      </div>
+      <section className="guide-section guide-questions" aria-label="A little more detail">
+        <h2>A little more detail</h2>
+        <details id="lesson-4" className="learn-disclosure"><summary>How does a new dot join the map?</summary><div className="disclosure-content"><p>It gets a randomly chosen height, searches for nearby dots, and connects to a few of them. <b>efConstruction</b> controls how many possible neighbors it keeps while searching. <b>M</b> controls how many it connects to.</p><p>Changing these settings rebuilds the map. You can watch this happen with the <b>Insert</b> tool.</p></div></details>
+        <details id="lesson-6" className="learn-disclosure"><summary>What happens during a search?</summary><div className="disclosure-content"><p>The search starts at the top, follows links toward your target, and moves down a layer at a time. At the bottom, it keeps several possible matches in play.</p><p><b>efSearch</b> sets that pool’s size; <b>k</b> is how many answers you ask for. A larger pool costs more work but can help find matches the search would otherwise miss.</p></div></details>
+        <details className="learn-disclosure"><summary>What does “recall” mean?</summary><div className="disclosure-content"><p>It’s the share of the true closest matches the search found. If it finds 4 of the closest 5, recall is 80%. The Results tab compares the search with checking every dot.</p></div></details>
+      </section>
+      <footer className="guide-footer"><span>That’s enough to get started.</span><button className="button secondary" onClick={onOpenPlayground}>Try it yourself →</button></footer>
     </div>
   </main>
 }

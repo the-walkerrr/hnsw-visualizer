@@ -872,6 +872,7 @@ function CameraControls({
     <>
       {stacked && (
         <div className="canvas-overlay camera-orientation" title="Shift-drag to orbit · [ ] to spin · , . to tilt">
+          <details><summary>Rotate view</summary>
           <div className="segmented" role="group" aria-label="Orientation">
             <button title="Spin the stack left ( [ )" onClick={() => onYaw(-step)}>
               ↺
@@ -886,6 +887,7 @@ function CameraControls({
               ⌃
             </button>
           </div>
+          </details>
         </div>
       )}
       <div className="canvas-overlay camera-zoom" title="Scroll to zoom · drag to pan · 0 to reset">

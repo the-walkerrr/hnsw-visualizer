@@ -94,30 +94,42 @@ describe('render smoke', () => {
   })
 
   it('shows concise guidance in the setup and replay surfaces', () => {
-    expect(render(initialState(), <BuildPanel />)).toContain('Start an experiment')
-    expect(render(initialState(), <Transport />)).toContain('Run an operation to create a trace')
-    expect(render(initialState(), <Explainer onOpenExplanation={() => {}} />)).toContain('Open the field guide')
+    expect(render(initialState(), <BuildPanel />)).toContain('Run a search')
+    expect(render(initialState(), <Transport />)).toContain('Run a search to begin')
+    expect(render(initialState(), <Explainer onOpenExplanation={() => {}} />)).toContain('Learn the basics')
   })
 
-  it('teaches from zero before showing the deep-dive lessons', () => {
+  it('introduces the map before offering optional control details', () => {
     const html = render(initialState(), <ExplanationPage onOpenPlayground={() => {}} />)
-    expect(html).toContain('The five-minute picture')
-    expect(html).toContain('No prior knowledge')
-    expect(html).toContain('Turn items into dots')
-    expect(html.indexOf('The five-minute picture')).toBeLessThan(html.indexOf('Optional deep dive'))
+    expect(html).toContain('HNSW, in two minutes')
+    expect(html).toContain('Dots are items')
+    expect(html).toContain('Watch one search')
+    expect(html.indexOf('Dots are items')).toBeLessThan(html.indexOf('Optional reference'))
     const visibleText = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ')
     expect(visibleText).not.toMatch(/\b(?:Params|Code|Metrics) tab\b/)
   })
 
-  it('gives every adjustable control a Learn anchor and an up/down explanation', () => {
+  it('gives every adjustable control a Learn anchor and input-specific explanations', () => {
     const learn = render(initialState(), <ExplanationPage onOpenPlayground={() => {}} />)
     const panels = `${render(initialState(), <BuildPanel />)}${render(initialState(), <ParamsPanel />)}`
     for (const guide of Object.values(CONTROL_GUIDES)) {
       expect(learn, guide.label).toContain(`id="${guide.id}"`)
       expect(panels, guide.label).toContain(`href="/learn#${guide.id}"`)
     }
-    expect(panels).toContain('Decrease / off')
-    expect(panels).toContain('Increase / on')
+    expect(learn).not.toContain('Decrease / off')
+    expect(learn).not.toContain('Increase / on')
+    expect(learn).toContain('Input: 2–24')
+    expect(learn).toContain('Euclidean (L2)')
+    expect(learn).toContain('Two moons')
+    expect(learn).toContain('href="#lesson-4"')
+    expect(learn).toContain('See how efConstruction is used during insertion')
+    expect(learn).toContain('href="#lesson-6"')
+    expect(learn).toContain('See how efSearch controls a query')
+    expect(panels).not.toContain('Decrease / off')
+    expect(panels).not.toContain('Increase / on')
+    expect(panels).toContain('Input: 2–24')
+    expect(panels).toContain('Euclidean (L2)')
+    expect(panels).toContain('Two moons')
   })
 
   it('shows the live vector count in the build panel', () => {

@@ -17,17 +17,15 @@ export function ParamsPanel() {
   const reset = () => dispatch({ type: 'setParams', patch: { ...DEFAULT_PARAMS } })
 
   return <div className="pane-scroll">
-    <div className="panel-intro with-action"><div><h2>Tune one idea at a time</h2><p><b>Graph structure</b> settings rebuild the index. <b>Query time</b> settings change only the next search.</p></div><button className="button ghost compact" onClick={reset}>Defaults</button></div>
+    <div className="panel-intro with-action"><div><h2>Try one small change.</h2><p>Run another search to see the difference.</p></div><button className="button ghost compact" onClick={reset}>Reset</button></div>
+    <Slider id="param-efs" label="Search effort (efSearch)" value={params.efSearch} min={1} max={200} hint="More possible matches in play. More work, often better answers." guide="efSearch" onChange={(efSearch) => set({ efSearch })}/>
     <div className="section-title"><span>Graph structure</span><em>rebuilds</em></div>
-    <Slider id="param-M" label="Connections per insertion (M)" value={params.M} min={2} max={24} hint="The new dot’s target number of neighbors per layer." guide="M" onChange={(M) => set({ M, Mmax: M, Mmax0: M * 2, mL: 1 / Math.log(Math.max(M, 2)) })}/>
-    <Slider id="efc" label="Construction beam (efConstruction)" value={params.efConstruction} min={1} max={200} hint="How widely insertion looks before choosing neighbors." guide="efConstruction" onChange={(efConstruction) => set({ efConstruction })}/>
+    <Slider id="param-M" label="Connections (M)" value={params.M} min={2} max={24} hint="Routes each new dot chooses. More routes use more memory." guide="M" onChange={(M) => set({ M, Mmax: M, Mmax0: M * 2, mL: 1 / Math.log(Math.max(M, 2)) })}/>
+    <Slider id="efc" label="Build effort (efConstruction)" value={params.efConstruction} min={1} max={200} hint="Possible neighbors considered while adding a dot." guide="efConstruction" onChange={(efConstruction) => set({ efConstruction })}/>
+    <details className="advanced-details"><summary>Advanced settings <span>Optional</span></summary><div className="details-body">
     <Slider id="mL" label="Layer multiplier (mL)" value={params.mL} min={0.1} max={2} step={0.01} format={(v) => v.toFixed(2)} hint={`Usual value for M ${params.M}: ${(1 / Math.log(Math.max(params.M, 2))).toFixed(2)}.`} guide="mL" onChange={(mL) => set({ mL })}/>
     <div className="field"><div className="field-head"><label htmlFor="metric">Distance metric</label></div><select id="metric" value={params.metric} onChange={(e) => set({ metric: e.target.value as Metric })}>{(Object.keys(METRIC_LABEL) as Metric[]).map((metric) => <option key={metric} value={metric}>{METRIC_LABEL[metric]}</option>)}</select><p className="hint">{METRIC_NOTE[params.metric]}</p><ControlHelp guide="metric"/></div>
 
-    <div className="section-title"><span>Query time</span><em>instant</em></div>
-    <Slider id="param-efs" label="Search beam (efSearch)" value={params.efSearch} min={1} max={200} hint="How many promising dots the query keeps in play." guide="efSearch" onChange={(efSearch) => set({ efSearch })}/>
-
-    <details className="advanced-details"><summary>Advanced settings <span>6 controls</span></summary><div className="details-body">
       <Slider id="Mmax" label="Maximum degree above L0" value={params.Mmax} min={params.M} max={32} hint={`Hard edge limit; cannot be lower than M (${params.M}).`} guide="Mmax" onChange={(Mmax) => set({ Mmax })}/>
       <Slider id="Mmax0" label="Maximum degree at L0" value={params.Mmax0} min={params.M} max={64} hint="Hard edge limit on the bottom layer; usually 2 × M." guide="Mmax0" onChange={(Mmax0) => set({ Mmax0 })}/>
       <Slider id="seed" label="Level random seed" value={params.seed} min={1} max={200} hint="A repeatable way to reshuffle random layer assignments." guide="seed" onChange={(seed) => set({ seed })}/>

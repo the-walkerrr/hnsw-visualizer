@@ -17,14 +17,14 @@ export function MetricsPanel() {
 
   return (
     <div className="pane-scroll">
-      <div className="section-title">Last operation</div>
+      <div className="panel-intro"><h2>How did the search do?</h2><p>Full search results, compared with checking every dot.</p></div>
       {!trace ? (
         <div className="empty">
-          Run a search first. This panel will then compare HNSW against exact scan and show the speed/accuracy trade-off.
+          Run a search in Explore to see your matches here.
         </div>
       ) : (
         <>
-          <dl className="kv">
+          <details className="advanced-details"><summary>Operation details</summary><dl className="kv details-body">
             <dt>operation</dt>
             <dd>{trace.title}</dd>
             <dt>distance computations</dt>
@@ -35,7 +35,7 @@ export function MetricsPanel() {
             <dd>{int(trace.stats.hops)}</dd>
             <dt>layers touched</dt>
             <dd>{trace.stats.layersTouched}</dd>
-          </dl>
+          </dl></details>
           {recall === null && (
             <div className="note">
               {trace.op === 'search' && graph.nodes.size === 0
@@ -45,26 +45,11 @@ export function MetricsPanel() {
           )}
           {recall !== null && (
             <>
-              <div className="note accent">
-                <b>Recall {(recall * 100).toFixed(0)}%</b> — of the {trace.exact.length} true nearest
-                neighbours, the graph returned {Math.round(recall * trace.exact.length)}.
-                {speedup !== null && (
-                  <>
-                    {' '}
-                    It measured {int(trace.stats.distCalls)} distances instead of{' '}
-                    {int(trace.stats.bruteForceDistCalls)} — {speedup.toFixed(1)}× fewer.
-                  </>
-                )}
-                {recall < 1 && (
-                  <>
-                    {' '}
-                    Raise ef<sub>search</sub> (currently {params.efSearch}) to close the gap.
-                  </>
-                )}
-              </div>
+              <div className="result-score"><span>Closest matches found</span><strong>{Math.round(recall * trace.exact.length)} <small>of {trace.exact.length}</small></strong><p>{(recall * 100).toFixed(0)}% recall — the share of the true closest matches found.</p></div>
+              <p className="result-explanation">{speedup !== null ? <>The search made <b>{int(trace.stats.distCalls)}</b> distance checks. Checking every dot takes <b>{int(trace.stats.bruteForceDistCalls)}</b>.</> : 'No distance checks were needed.'} {recall < 1 && <>Try more search effort in Tune (now {params.efSearch}), then search again.</>}</p>
               <BarChart
-                title="Distance computations for this query"
-                note="lower is better · same k, same answer set size"
+                title="Work done"
+                note="distance checks · fewer is faster"
                 horizontal
                 bars={[
                   { label: 'HNSW', value: trace.stats.distCalls, color: 'var(--blue)' },
@@ -75,7 +60,7 @@ export function MetricsPanel() {
                   },
                 ]}
               />
-              <table className="table">
+              <details className="advanced-details"><summary>Compare individual matches</summary><table className="table">
                 <thead>
                   <tr>
                     <th>rank</th>
@@ -102,12 +87,13 @@ export function MetricsPanel() {
                     )
                   })}
                 </tbody>
-              </table>
+              </table></details>
             </>
           )}
         </>
       )}
 
+      <details className="advanced-details"><summary>Graph details <span>{stats.live} dots</span></summary><div className="details-body">
       <div className="section-title">Index</div>
       <dl className="kv">
         <dt>vectors</dt>
@@ -148,6 +134,7 @@ export function MetricsPanel() {
       <p className="hint">
         Sparse upper layers make long jumps. Dense lower layers finish the precise local search.
       </p>
+      </div></details>
     </div>
   )
 }

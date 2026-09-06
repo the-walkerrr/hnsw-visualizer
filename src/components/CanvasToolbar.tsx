@@ -1,9 +1,9 @@
 import { useApp, useDispatch, useShownLayer, useViewGraph, type Tool } from '../state/store'
 
 const LEGEND: Array<[string, string, string]> = [
-  ['--c-query', 'query', 'Query point'], ['--c-entry', 'entry', 'Search entry point'],
-  ['--c-current', 'active', 'Node being expanded'], ['--c-cand', 'candidate', 'Queued candidate'],
-  ['--c-w', 'beam', 'Current ef-best set'], ['--c-result', 'result', 'Returned neighbor'],
+  ['--c-query', 'target', 'Your search point'], ['--c-entry', 'start', 'Search starting point'],
+  ['--c-current', 'checking', 'Dot being checked'], ['--c-cand', 'to check', 'Dots waiting to be checked'],
+  ['--c-w', 'best so far', 'Closest dots found so far'], ['--c-result', 'matches', 'Returned matches'],
 ]
 
 function ToolIcon({ tool }: { tool: Tool }) {
@@ -22,8 +22,8 @@ export function CanvasToolbar() {
   return <>
     <div className="canvas-overlay tl">
       <div className="segmented" role="group" aria-label="Graph view">
-        <button aria-pressed={viewMode === 'stack'} onClick={() => dispatch({ type: 'setViewMode', mode: 'stack' })}>Hierarchy</button>
-        <button aria-pressed={viewMode === 'layer'} onClick={() => dispatch({ type: 'setViewMode', mode: 'layer' })}>Single layer</button>
+        <button aria-pressed={viewMode === 'stack'} onClick={() => dispatch({ type: 'setViewMode', mode: 'stack' })}>All layers</button>
+        <button aria-pressed={viewMode === 'layer'} onClick={() => dispatch({ type: 'setViewMode', mode: 'layer' })}>One layer</button>
       </div>
       {viewMode === 'layer' && <div className="segmented layer-picker" role="group" aria-label="Visible layer">
         {Array.from({ length: top + 1 }, (_, i) => top - i).map((l) => <button key={l} aria-pressed={layer === l} onClick={() => dispatch({ type: 'setLayer', layer: l })}>L{l}</button>)}

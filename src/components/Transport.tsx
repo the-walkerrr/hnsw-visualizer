@@ -5,7 +5,7 @@ export function Transport() {
   const dispatch = useDispatch()
   const total = trace?.steps.length ?? 0
   const atEnd = total === 0 || step >= total - 1
-  const label = trace?.title ?? 'Run an operation to create a trace'
+  const label = trace?.title ?? 'Run a search to begin'
 
   return <div className="transport" aria-label="Trace playback">
     <div className="transport-controls">
@@ -18,8 +18,10 @@ export function Transport() {
       <input className="scrub" type="range" min={0} max={Math.max(total - 1, 0)} value={step} disabled={!trace} aria-label="Trace step" onChange={(e) => dispatch({ type: 'seek', index: Number(e.target.value) })}/>
     </div>
     <div className="transport-options">
-      <button className="text-control" disabled={!trace} onClick={() => dispatch({ type: 'setGranularity', g: granularity === 'coarse' ? 'fine' : 'coarse' })} title="Toggle between major steps and every algorithm detail">{granularity === 'coarse' ? 'Major steps' : 'Every step'}</button>
-      <label className="speed-control"><span className="sr-only">Playback speed</span><select value={speed} onChange={(e) => dispatch({ type: 'setSpeed', speed: Number(e.target.value) })} disabled={!trace} aria-label="Playback speed"><option value={1}>1×</option><option value={2}>2×</option><option value={3}>3×</option><option value={5}>5×</option><option value={8}>8×</option></select></label>
+      <details className="playback-settings"><summary aria-label="Playback settings" title="Playback settings">Settings</summary><div>
+      <label>Steps<select value={granularity} onChange={(e) => dispatch({ type: 'setGranularity', g: e.target.value as 'coarse' | 'fine' })} aria-label="Replay detail"><option value="coarse">Main steps</option><option value="fine">Every step</option></select></label>
+      <label>Speed<select value={speed} onChange={(e) => dispatch({ type: 'setSpeed', speed: Number(e.target.value) })} aria-label="Playback speed"><option value={1}>1×</option><option value={2}>2×</option><option value={3}>3×</option><option value={5}>5×</option><option value={8}>8×</option></select></label>
+      </div></details>
       <button className="iconbtn square" title="Clear trace" aria-label="Clear trace" disabled={!trace} onClick={() => dispatch({ type: 'closeTrace' })}>×</button>
     </div>
   </div>
