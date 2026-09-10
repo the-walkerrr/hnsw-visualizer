@@ -127,7 +127,7 @@ describe('render smoke', () => {
     expect(learn).toContain('Two moons')
     expect(learn).toContain('href="#lesson-4"')
     expect(learn).toContain('See how efConstruction is used during insertion')
-    expect(learn).toContain('href="#lesson-6"')
+    expect(learn).toContain('href="#ef-search-explained"')
     expect(learn).toContain('See how efSearch controls a query')
     expect(panels).not.toContain('Decrease / off')
     expect(panels).not.toContain('Increase / on')

@@ -1,5 +1,6 @@
 import { useEffect, type ReactNode } from 'react'
 import { CONTROL_GUIDES, type ControlGuide } from '../lessons/controlGuides'
+import { EfSearchVisual } from './EfSearchVisual'
 
 function ControlCard({ guide }: { guide: ControlGuide }) {
   return <details id={guide.id} className="learn-disclosure control-reference">
@@ -62,11 +63,11 @@ function LayersVisual() {
 }
 
 function SearchVisual() {
-  return <Visual title="One search, four decisions">
+  return <Visual title="A greedy walk on one layer">
     <svg viewBox="0 0 720 270" role="img" aria-labelledby="search-title search-desc">
       <title id="search-title">A greedy graph search moving toward a query</title>
-      <desc id="search-desc">The route begins at an entry point, checks connected nodes, keeps promising candidates, and returns the nearest result.</desc>
-      <g className="visual-edge"><path d="M82 87 185 58 273 106 365 68 449 126 548 83M185 58l80 108M273 106l-8 60M365 68l84 58M265 166l111 34 73-74M376 200l116 10 56-127" /></g>
+      <desc id="search-desc">The blue route follows existing edges to progressively closer dots. It ends at a dot whose connected neighbors are farther from q. This demonstrates the greedy walk used on upper layers.</desc>
+      <g className="visual-edge"><path d="M82 87 185 58 273 106 365 68 449 126 548 83M273 106l-8 60M273 106l176 20 43 84M365 68l84 58M265 166l111 34 73-74M376 200l116 10 56-127" /></g>
       <g className="visual-node"><circle cx="82" cy="87" r="8" /><circle cx="185" cy="58" r="7" /><circle cx="273" cy="106" r="7" /><circle cx="365" cy="68" r="7" /><circle cx="449" cy="126" r="7" /><circle cx="548" cy="83" r="7" /><circle cx="265" cy="166" r="7" /><circle cx="376" cy="200" r="7" /><circle cx="492" cy="210" r="7" /></g>
       <path className="search-route" d="M82 87 185 58 273 106 449 126 492 210" />
       <g className="route-points"><circle cx="82" cy="87" r="10" /><circle cx="185" cy="58" r="9" /><circle cx="273" cy="106" r="9" /><circle cx="449" cy="126" r="9" /><circle className="result" cx="492" cy="210" r="11" /></g>
@@ -74,24 +75,7 @@ function SearchVisual() {
       <g className="query-mark"><path d="m552 200 16 16m0-16-16 16" /></g>
       <text className="visual-caption" x="579" y="213">q</text>
     </svg>
-    <figcaption>At each stop, HNSW measures only connected neighbors. It keeps moving while one of them brings the search closer to <b>q</b>.</figcaption>
-  </Visual>
-}
-
-function BeamVisual() {
-  return <Visual title="Search effort controls how many routes survive">
-    <svg viewBox="0 0 720 270" role="img" aria-labelledby="beam-title beam-desc">
-      <title id="beam-title">Comparison of narrow and wide HNSW searches</title>
-      <desc id="beam-desc">A narrow search follows one route and gets trapped, while a wider search keeps alternatives and reaches the true nearest result with more distance checks.</desc>
-      <path className="visual-divider" d="M360 18v220" />
-      <g className="visual-edge"><path d="M54 137 113 90 178 130 245 81 305 118M113 90l57 101M178 130l-8 61M245 81l60 37" /><path d="M414 137 473 90 538 130 605 81 665 118M473 90l57 101M538 130l-8 61M605 81l60 37M530 191l76 29 59-102" /></g>
-      <g className="visual-node"><circle cx="54" cy="137" r="7" /><circle cx="113" cy="90" r="7" /><circle cx="178" cy="130" r="7" /><circle cx="245" cy="81" r="7" /><circle cx="305" cy="118" r="7" /><circle cx="170" cy="191" r="7" /><circle cx="414" cy="137" r="7" /><circle cx="473" cy="90" r="7" /><circle cx="538" cy="130" r="7" /><circle cx="605" cy="81" r="7" /><circle cx="665" cy="118" r="7" /><circle cx="530" cy="191" r="7" /><circle cx="606" cy="220" r="7" /></g>
-      <path className="search-route narrow" d="M54 137 113 90 178 130 170 191" /><path className="search-route" d="M414 137 473 90 538 130 530 191 606 220 665 118" />
-      <g className="query-mark"><path d="m286 194 14 14m0-14-14 14M646 194l14 14m0-14-14 14" /></g>
-      <circle className="false-result" cx="170" cy="191" r="11" /><circle className="true-result" cx="606" cy="220" r="11" />
-      <text className="panel-title" x="38" y="34">Narrow beam · efSearch = 2</text><text className="panel-title" x="398" y="34">Wider beam · efSearch = 8</text>
-      <text className="visual-caption" x="38" y="246">less work · can stop early</text><text className="visual-caption" x="398" y="246">more work · better chance of exact recall</text>
-    </svg>
+    <figcaption>On an upper layer, inspect connected neighbors and continue from the closest one if it improves the position. Once no neighbor is closer to <b>q</b>, descend from the best dot found. The wider bottom-layer search works differently; see the efSearch example below.</figcaption>
   </Visual>
 }
 
@@ -187,15 +171,15 @@ export function ExplanationPage({ onOpenPlayground, onStartFirstSearch }: { onOp
                 <li><b>Enter.</b><span>Start at the single entry point on the highest layer.</span></li>
                 <li><b>Compare.</b><span>Measure the current dot’s connected neighbors against the query.</span></li>
                 <li><b>Move.</b><span>Follow a closer neighbor; stop when none improves the position.</span></li>
-                <li><b>Descend.</b><span>Use that best dot as the starting point one layer lower. Repeat through layer 0.</span></li>
+                <li><b>Descend.</b><span>Use that best dot as the starting point one layer lower. On layer 0, switch to the wider search explained below.</span></li>
               </ol>
               <SearchVisual />
             </div>
 
             <div className="lesson-block">
               <h3>2.2 · The bottom layer keeps alternatives alive</h3>
-              <p>A purely greedy walk can get trapped at a dot whose immediate neighbors all look worse. On layer 0, HNSW therefore keeps a shortlist of promising candidates and explores more than one route. This shortlist is the search beam.</p>
-              <div className="term-pair"><div><code>candidates</code><p>Promising dots that still need to be checked.</p></div><div><code>best so far</code><p>The closest dots found up to this moment.</p></div></div>
+              <p>A purely greedy walk can get trapped at a dot whose immediate neighbors all look worse. On layer 0, HNSW keeps a shortlist of the closest dots found so far and a separate queue of dots whose connections it may explore next.</p>
+              <div className="term-pair"><div><code>to check · C</code><p>Discovered dots whose neighbors have not been explored yet. The nearest one is checked next.</p></div><div><code>best so far · W</code><p>The closest dots kept so far, including ones already explored. efSearch limits the size of this list.</p></div></div>
             </div>
 
             <aside className="try-panel"><div><span>TRY IT IN THE PLAYGROUND</span><h3>Replay every decision</h3><p>The example is preloaded. Use the arrows beneath the graph to watch the route one step at a time.</p></div><button className="button primary" onClick={onStartFirstSearch}>Start with an example →</button></aside>
@@ -204,22 +188,47 @@ export function ExplanationPage({ onOpenPlayground, onStartFirstSearch }: { onOp
           <section id="chapter-quality" className="guide-chapter">
             <header className="chapter-heading"><span>03</span><div><p className="section-kicker">The central trade-off</p><h2>Spend more work to miss less often.</h2><p>HNSW is approximate. Its main query-time setting controls how broadly it explores before returning an answer.</p></div></header>
 
-            <div className="lesson-block">
-              <h3>3.1 · efSearch widens the search beam</h3>
-              <p>A low <code>efSearch</code> keeps few alternatives: fast, but easier to trap. A higher value keeps more routes alive: more distance calculations, but a better chance of reaching the true nearest vectors.</p>
-              <BeamVisual />
+            <div id="ef-search-explained" className="lesson-block">
+              <h3>3.1 · efSearch is the number of “best so far” slots</h3>
+              <p>Imagine keeping a shortlist while looking for a house. With one slot, you keep only your favorite house so far. With several slots, a less attractive house can stay on the list long enough for you to discover a better one nearby.</p>
+              <p>In HNSW, these are dots instead of houses. <code>efSearch = 8</code> means the bottom-layer search keeps up to eight dots in its <b>best-so-far list (W)</b>. Each dot is ranked by its distance to the query. Those eight slots are reused as closer dots are discovered.</p>
+              <div className="ef-key-point"><b>8 slots does not mean 8 distance checks.</b><p>The search may measure many more than eight dots as it updates the list. efSearch is also not a distance radius, a number of graph edges, or the number of results returned.</p></div>
+              <h4 className="ef-subheading">Two lists do different jobs</h4>
+              <div className="term-pair"><div><code>W · best so far</code><p>Keeps up to efSearch dots, sorted by distance. Removing the farthest dot makes room for a better one. Exploring a dot does not remove it from W.</p></div><div><code>C · to check next</code><p>Contains accepted dots waiting to have their neighbors explored. Take the nearest one next. C has no separate efSearch size cap; an evicted dot can remain queued until the stopping rule rules it out.</p></div></div>
+              <h4 className="ef-subheading">What happens when a neighbor is discovered?</h4>
+              <ol className="ef-rules">
+                <li><b>Measure it once.</b> Compute its distance to q. Skip dots already measured on this layer.</li>
+                <li><b>Decide whether to keep it.</b> If W has room, accept it. If W is full, accept it only if it is closer than the farthest dot in W.</li>
+                <li><b>Update both lists.</b> Add an accepted dot to W and C. If W now exceeds its capacity, drop its farthest dot from W.</li>
+                <li><b>Explore the next candidate.</b> Take the nearest dot from C and inspect its links, unless the stopping rule below applies.</li>
+              </ol>
+              <EfSearchVisual />
+              <h4 className="ef-subheading">Why does the extra slot help?</h4>
+              <p>After inspecting S, the one-slot search keeps A (distance 100) and rejects B (175). The two-slot search keeps both A and B. Once A’s links are exhausted, B still deserves a turn. Its link reveals T (44.7), a much better answer.</p>
+              <p>B does not need to be closer than A. It only needs to fit within the best-so-far list when discovered. That is how a wider search can explore a useful detour.</p>
             </div>
 
             <div className="lesson-block">
-              <h3>3.2 · k asks for answers; efSearch funds the search</h3>
+              <h3>3.2 · k sets the result count; efSearch sets the shortlist size</h3>
               <div className="parameter-relationship"><div><code>k = 5</code><span>Return five neighbors</span></div><span aria-hidden="true">≠</span><div><code>efSearch = 24</code><span>Keep up to 24 promising candidates while looking</span></div></div>
-              <p>Increasing <code>k</code> changes how many results you request. Increasing <code>efSearch</code> changes how hard the algorithm looks for them. If you raise <code>k</code>, the beam must be at least that wide.</p>
+              <p>For <code>k = 5</code> and <code>efSearch = 24</code>, the search maintains up to 24 best-so-far dots, then returns the nearest five eligible dots from that list. The other 19 are not extra results.</p>
+              <p>This playground uses <code>effective ef = max(efSearch, k)</code>. If k is 5, setting efSearch to 1, 2, or 5 uses the same five-slot capacity. Set k to 1 to compare the one-slot and two-slot behavior shown above.</p>
             </div>
 
             <div className="lesson-block">
-              <h3>3.3 · Recall measures what the shortcut missed</h3>
+              <h3>3.3 · When does the search stop?</h3>
+              <p>It stops when C is empty, or when the nearest queued dot is <b>farther than the farthest dot still in W</b>. All other queued dots are at least as far away, so the search saves work by not expanding them.</p>
+              <div className="ef-stop-example"><code>W: [4, 7, 10]</code><code>Next in C: 12</code><p>12 &gt; 10 → stop exploring this layer.</p></div>
+              <p>Those are distances to q. The stopping rule is a shortcut, not proof that no closer dot exists: the dot at distance 12 might have an unseen neighbor at distance 1. Skipping its links is one reason HNSW can miss the true nearest neighbor.</p>
+              <p>Upper layers use a one-slot greedy search to reach a promising region. In this implementation, efSearch changes the wider search on layer 0 only. It does not add connections or rebuild the graph.</p>
+            </div>
+
+            <div className="lesson-block">
+              <h3>3.4 · Recall measures what the shortcut missed</h3>
               <div className="recall-card"><div><span>TRUE TOP 5</span><div className="result-dots"><i /><i /><i /><i /><i /></div></div><div><span>FOUND BY HNSW</span><div className="result-dots"><i /><i /><i /><i /><i className="miss" /></div></div><strong>recall@5 = 4 / 5 = 80%</strong></div>
               <p>The playground computes the exact nearest neighbors as a teaching baseline, then compares the HNSW result with them. In a production system, recall is usually estimated on a representative sample because exact scans are expensive.</p>
+              <p>To see the trade-off, keep the dots, query, and k fixed. Compare efSearch at k, 2 × k, and 4 × k. Look at both recall and distance checks. More effort often improves recall, but some queries already have the exact answer and gain nothing. A wider search also cannot create a missing connection.</p>
+              <p className="ef-source">Further reading: <a href="https://github.com/nmslib/hnswlib/blob/master/ALGO_PARAMS.md">hnswlib’s search parameter definitions</a> and <a href="https://arxiv.org/abs/1603.09320">the HNSW paper, Algorithms 2 and 5</a>.</p>
             </div>
           </section>
 

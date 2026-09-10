@@ -215,7 +215,7 @@ class Run {
           's8',
           `Stop: nearest candidate is further than the worst result`,
           `The closest thing left in C is ${this.nm(c.id)} at ${f(c.dist)}, but the *worst* entry already in W (${this.nm(furthest.id)}) is only ${f(furthest.dist)} away. ` +
-            `Because we always pop C in distance order, nothing left in C can improve W — so the search on this layer is provably finished. This early exit is why HNSW touches so few nodes.`,
+            `C is ordered by distance, so none of the queued dots themselves can improve W. The search stops without checking their remaining links to save work. An unseen neighbour could still be closer: this is an approximate stopping rule, not proof of an exact answer.`,
         )
         break
       }

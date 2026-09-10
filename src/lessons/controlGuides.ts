@@ -103,15 +103,16 @@ export const CONTROL_GUIDES = {
   efSearch: {
     id: 'control-ef-search',
     label: 'Search effort (efSearch)',
-    plain: 'How many possible matches the search keeps on the bottom layer.',
+    plain: 'The number of slots in the bottom-layer “best so far” list. A value of 8 keeps up to eight promising dots at a time; it can still measure many more dots while searching.',
     inputs: [
-      { label: 'Input: 1–200', explanation: 'Enter a whole number for the size of the possible-match list. The search always keeps room for at least k results.' },
-      { label: 'What the value means', explanation: 'Small values check fewer dots and return faster. Large values explore more alternatives and usually improve recall, with more distance calculations.' },
+      { label: 'Input: 1–200', explanation: 'The effective capacity is max(efSearch, k). If k is 5, efSearch values 1 through 5 all use five slots. This is not a limit on distance checks or the number of final results.' },
+      { label: 'How a slot is used', explanation: 'Accept a discovered dot if there is room or it is closer than the farthest kept dot. Add it to the to-check queue too. When the list overflows, remove its farthest member from the best-so-far list.' },
+      { label: 'Why more slots help', explanation: 'A slightly farther dot may lead to a closer unseen neighbor. A larger list can keep that detour available, usually improving recall at the cost of more distance checks. It does not guarantee exact results.' },
     ],
     lower: 'Searches faster and checks fewer dots, but is more likely to miss a true nearest neighbor.',
     higher: 'Usually improves recall by exploring more alternatives, but increases distance calculations and latency.',
     when: 'Query-time setting: it changes searches immediately and does not rebuild the graph.',
-    learnMore: { href: '#lesson-6', label: 'See how efSearch controls a query' },
+    learnMore: { href: '#ef-search-explained', label: 'See how efSearch controls a query' },
   },
   Mmax: {
     id: 'control-mmax',

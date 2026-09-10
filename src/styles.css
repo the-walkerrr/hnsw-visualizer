@@ -413,6 +413,52 @@ input:hover, select:hover { border-color: var(--text-3); }
 .disclosure-content dt { font-size: 13px; font-weight: 600; }
 .disclosure-content dd { margin: 4px 0 0; color: var(--text-2); font-size: 14px; }
 .control-reference:target { border-color: var(--blue); }
+.ef-subheading { margin: 30px 0 12px; font-size: 16px; letter-spacing: -.01em; }
+.ef-key-point { padding: 19px 22px; margin: 22px 0; border-left: 3px solid var(--blue); background: var(--surface-0); }
+.ef-key-point b { font-size: 15px; }
+.ef-key-point p { margin: 8px 0 0; color: var(--text-2); font-size: 14px; line-height: 1.65; }
+.ef-rules { padding-left: 22px; color: var(--text-2); font-size: 14px; line-height: 1.7; }
+.ef-rules li { padding: 5px 0 5px 5px; }.ef-rules b { color: var(--text-1); }
+.ef-demo { margin: 30px 0; }
+.ef-demo > figcaption { margin-bottom: 18px; font-size: 16px; }
+.ef-demo > figcaption p, .ef-outcome p { margin: 8px 0 0; color: var(--text-2); font-size: 14px; line-height: 1.65; }
+.ef-runs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.ef-run { min-width: 0; display: flex; flex-direction: column; border: 1px solid var(--line-strong); border-radius: 10px; overflow: hidden; background: var(--surface-0); }
+.ef-run > header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+.ef-run h4 { font: 600 14px var(--mono); }.ef-run > header > span { color: var(--text-2); font-size: 12px; }
+.ef-run svg { display: block; width: 100%; height: auto; }
+.ef-run svg .ef-active-edge { stroke: var(--orange); stroke-width: 3; }
+.ef-node > circle { fill: var(--surface-1); stroke: var(--text-2); stroke-width: 1.5; }
+.ef-node > .ef-kept-ring { fill: none; stroke: var(--violet); stroke-width: 2; }
+.ef-node-name { fill: var(--text-1); font: 600 13px var(--mono); }
+.ef-distance { fill: var(--text-1); font: 13px var(--mono); }
+.ef-node-status { fill: var(--text-2); font: 12px var(--sans); }
+.ef-node-unseen > circle { stroke-dasharray: 3 2; }
+.ef-node-checking > circle:not(.ef-kept-ring) { fill: var(--orange); stroke: var(--orange); }
+.ef-node-returned > circle:not(.ef-kept-ring) { fill: var(--green); stroke: var(--green); }
+.ef-node-rejected > circle:not(.ef-kept-ring) { stroke: var(--red); stroke-width: 2.5; }
+.ef-query-label { fill: var(--magenta); font: 600 15px var(--mono); }
+.ef-lists { display: grid; gap: 16px; margin: 0 16px; padding: 16px 0; border-block: 1px solid var(--line); }
+.ef-list-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 5px; margin-bottom: 9px; }
+.ef-list-heading b { font-size: 12px; }.ef-list-heading span { font: 11px var(--mono); color: var(--text-2); }
+.ef-list ol { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; padding: 0; margin: 0; }
+.ef-list li { min-width: 78px; min-height: 32px; padding: 5px 9px; display: flex; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid var(--line-strong); border-radius: 5px; background: var(--surface-1); font: 12px var(--mono); }
+.ef-list li span { color: var(--text-2); }.ef-list li.ef-slot-empty { border-style: dashed; color: var(--text-3); font-family: var(--sans); }
+.ef-step { padding: 18px 16px 12px; flex: 1; min-height: 190px; }
+.ef-step b { font-size: 14px; }.ef-step p { color: var(--text-2); font-size: 13px; line-height: 1.65; margin: 8px 0 0; }
+.ef-progress { display: flex; justify-content: space-between; gap: 8px; margin: 0 16px 12px; color: var(--text-2); font: 10px var(--mono); }
+.ef-buttons { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 7px; padding: 12px; border-top: 1px solid var(--line); }
+.ef-buttons .button.compact { min-height: 36px; height: auto; padding: 7px 9px; }
+.ef-demo-note { margin: 14px 0; font-size: 12px; line-height: 1.65; color: var(--text-2); }
+.ef-outcome { padding: 18px 20px; border: 1px solid var(--line); border-radius: 8px; }.ef-outcome b { font-size: 14px; }
+.ef-stop-example { padding: 20px; display: flex; flex-wrap: wrap; gap: 12px; margin: 22px 0; background: var(--surface-0); border: 1px solid var(--line); border-radius: 8px; }
+.ef-stop-example p { width: 100%; margin: 0; font-size: 14px; color: var(--text-2); }
+.lesson-block > p.ef-source { font-size: 12px; }.ef-source a { color: var(--blue); }
+#ef-search-explained { scroll-margin-top: 24px; }
+@media (max-width: 650px) {
+  .ef-runs { grid-template-columns: 1fr; }
+  .ef-step { min-height: 0; }
+}
 .guide-footer { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 30px 0 0 280px; color: var(--text-2); font-size: 14px; }
 
 /* Fewer controls, clearer first action */
