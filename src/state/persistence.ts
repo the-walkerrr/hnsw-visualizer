@@ -26,7 +26,7 @@ function reviver(_key: string, value: unknown) {
 }
 
 export function serializeState(state: AppState): string {
-  return JSON.stringify({ version: STORAGE_VERSION, state: { ...state, playing: false } }, replacer)
+  return JSON.stringify({ version: STORAGE_VERSION, state: { ...state, playing: false, movingNode: null } }, replacer)
 }
 
 export function deserializeState(raw: string): AppState | null {
@@ -49,6 +49,7 @@ export function deserializeState(raw: string): AppState | null {
       params: { ...defaults.params, ...candidate.params },
       dataset: { ...defaults.dataset, ...candidate.dataset },
       playing: false,
+      movingNode: null,
     }
   } catch {
     return null

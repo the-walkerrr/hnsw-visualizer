@@ -91,6 +91,9 @@ export interface StepVis {
   candidates: NodeId[]
   /** W — the running result set / dynamic nearest list. */
   dynamic: NodeId[]
+  /** Capacity and metric captured for this SEARCH-LAYER invocation. */
+  searchEf?: number
+  searchMetric?: Metric
   /** Final answer of the whole operation, once known. */
   results: NodeId[]
   /** Neighbors accepted by SELECT-NEIGHBORS. */

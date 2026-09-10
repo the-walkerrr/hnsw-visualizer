@@ -1,7 +1,7 @@
 import * as AlertDialog from '@radix-ui/react-alert-dialog'
 import { WORLD } from '../../hnsw/constants'
 import { distance } from '../../hnsw/metric'
-import { useApp, useDispatch, useViewGraph } from '../../state/store'
+import { editsLocked, useApp, useDispatch, useViewGraph } from '../../state/store'
 
 export function NodePanel() {
   const state = useApp()
@@ -113,7 +113,8 @@ export function NodePanel() {
         </div>
       ))}
 
-      <div className="section-title">Actions</div>
+      <fieldset className="node-actions panel-fields" disabled={editsLocked(state) || !committedNode}>
+      <legend className="section-title">Actions</legend>
       <form
         key={`${committedNode?.id}:${committedNode?.vec.join(',')}`}
         className="coordinate-form"
@@ -217,6 +218,7 @@ export function NodePanel() {
         Enter coordinates above or drag this node on the canvas with the Inspect tool. Either method
         runs an update in <b>{state.updateMode}</b> mode.
       </p>
+      </fieldset>
     </div>
   )
 }

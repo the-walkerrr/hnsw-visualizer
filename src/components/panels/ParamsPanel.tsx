@@ -1,7 +1,7 @@
 import { DEFAULT_PARAMS } from '../../hnsw/algorithm'
 import { METRIC_LABEL, METRIC_NOTE } from '../../hnsw/metric'
 import type { Metric } from '../../hnsw/types'
-import { useApp, useDispatch } from '../../state/store'
+import { editsLocked, useApp, useDispatch } from '../../state/store'
 import type { ControlGuideKey } from '../../lessons/controlGuides'
 import { ControlHelp } from './ControlHelp'
 
@@ -11,12 +11,13 @@ function Slider({ id, label, value, min, max, step = 1, hint, guide, format, onC
 }
 
 export function ParamsPanel() {
-  const { params } = useApp()
+  const state = useApp()
+  const { params } = state
   const dispatch = useDispatch()
   const set = (patch: Partial<typeof params>) => dispatch({ type: 'setParams', patch })
   const reset = () => dispatch({ type: 'setParams', patch: { ...DEFAULT_PARAMS } })
 
-  return <div className="pane-scroll">
+  return <fieldset className="pane-scroll panel-fields" disabled={editsLocked(state)}>
     <div className="panel-intro with-action"><div><h2>Try one small change.</h2><p>Run another search to see the difference.</p></div><button className="button ghost compact" onClick={reset}>Reset</button></div>
     <Slider id="param-efs" label="Search effort (efSearch)" value={params.efSearch} min={1} max={200} hint="More possible matches in play. More work, often better answers." guide="efSearch" onChange={(efSearch) => set({ efSearch })}/>
     <div className="section-title"><span>Graph structure</span><em>rebuilds</em></div>
@@ -33,5 +34,5 @@ export function ParamsPanel() {
       <div className="field switch-field"><label className="checkline"><input type="checkbox" checked={params.extendCandidates} onChange={(e) => set({ extendCandidates: e.target.checked })}/><span><b>Extend candidates</b><small>Also consider neighbors of candidates.</small></span></label><ControlHelp guide="extendCandidates"/></div>
       <div className="field switch-field"><label className="checkline"><input type="checkbox" checked={params.keepPrunedConnections} onChange={(e) => set({ keepPrunedConnections: e.target.checked })}/><span><b>Keep pruned connections</b><small>Use rejected candidates to fill empty edge slots.</small></span></label><ControlHelp guide="keepPrunedConnections"/></div>
     </div></details>
-  </div>
+  </fieldset>
 }

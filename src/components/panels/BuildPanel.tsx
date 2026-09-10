@@ -2,7 +2,7 @@ import { WORLD } from '../../hnsw/constants'
 import { liveNodes } from '../../hnsw/graph'
 import { PRESETS, type PresetId } from '../../hnsw/presets'
 import { makeRng } from '../../hnsw/rng'
-import { useApp, useDispatch, useScript } from '../../state/store'
+import { editsLocked, useApp, useDispatch, useScript } from '../../state/store'
 import { ControlHelp } from './ControlHelp'
 
 function RangeField({ id, label, value, min, max, hint, guide, onChange }: { id: string; label: string; value: number; min: number; max: number; hint: string; guide: 'vectors' | 'k'; onChange: (value: number) => void }) {
@@ -18,7 +18,7 @@ export function BuildPanel() {
   const rebuild = (id = dataset.id, n = vectorCount || dataset.n) => script([{ t: 'preset', id, n, seed: dataset.seed }])
   const randomPoint = () => { const rng = makeRng((Date.now() ^ state.graph.nextSeq) >>> 0); return [40 + rng() * (WORLD.width - 80), 40 + rng() * (WORLD.height - 80)] as const }
 
-  return <div className="pane-scroll">
+  return <fieldset className="pane-scroll panel-fields" disabled={editsLocked(state)}>
     <div className="panel-intro"><p className="section-kicker">Start here</p><h2>Find the closest dots.</h2><p>Choose a spot on the canvas, or let us pick one.</p></div>
     <button className="button primary run-search" disabled={!vectorCount} onClick={() => script([{ t: 'tool', tool: 'search' }, { t: 'search', at: [...randomPoint()] }])}>Run a search <span aria-hidden="true">→</span></button>
     <p className="search-next">{vectorCount ? 'Then press Play below the graph to watch it work.' : 'Add dots below to start searching.'}</p>
@@ -29,5 +29,5 @@ export function BuildPanel() {
     <div className="row"><button className="button secondary compact" onClick={() => script([{ t: 'tool', tool: 'insert' }, { t: 'insert', at: [...randomPoint()] }])}>Add one dot</button><button className="button ghost compact" onClick={() => script([{ t: 'clear' }])}>Clear dots</button></div>
     </div></details>
     <div className="explore-tip"><b>Curious about accuracy?</b><p>Try a different search effort in Tune, then run another search.</p><button className="advanced-link" onClick={() => dispatch({ type: 'setRightTab', tab: 'params' })}>Adjust search effort →</button></div>
-  </div>
+  </fieldset>
 }

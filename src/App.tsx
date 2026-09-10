@@ -10,19 +10,22 @@ import { CodePanel } from "./components/panels/CodePanel";
 import { LabPanel } from "./components/panels/LabPanel";
 import { MetricsPanel } from "./components/panels/MetricsPanel";
 import { NodePanel } from "./components/panels/NodePanel";
+import { QueuesPanel } from "./components/panels/QueuesPanel";
+import { OperationNotice } from "./components/OperationNotice";
 import { ParamsPanel } from "./components/panels/ParamsPanel";
 import { graphStats } from "./hnsw/metrics";
 import { playgroundEntryActions, useApp, useDispatch, useViewGraph, type PlaygroundEntry, type RightTab } from "./state/store";
 
 const TABS: Array<[RightTab, string, string]> = [
   ["build", "Explore", "Choose dots and run a search"],
+  ["queues", "Queues", "Watch W, C, and dropped candidates"],
   ["params", "Tune", "Change graph and query parameters"],
   ["metrics", "Results", "Compare cost, recall, and graph structure"],
 ];
 
 const PANELS: Record<RightTab, () => React.JSX.Element> = {
   build: BuildPanel, params: ParamsPanel, code: CodePanel,
-  node: NodePanel, metrics: MetricsPanel, lab: LabPanel,
+  node: NodePanel, metrics: MetricsPanel, lab: LabPanel, queues: QueuesPanel,
 };
 
 type Route = "home" | "learn" | "playground";
@@ -122,7 +125,7 @@ export default function App() {
       {route === "home" ? <Home navigate={navigate} onOpenPlayground={() => openPlayground()} /> : route === "learn" ? <ExplanationPage onOpenPlayground={() => openPlayground()} onStartFirstSearch={() => openPlayground("guided")} /> : (
         <main className="playground-layout">
           <section className="workbench" aria-label="Graph visualization and replay"><div className="canvas-stage"><GraphCanvas /><CanvasToolbar /></div><Transport /><Explainer onOpenExplanation={() => navigate("learn")} /></section>
-          <aside className="inspector"><div className="inspector-head"><div className="panel-navigation"><div className="tabs" role="tablist" aria-label="Playground panels">{TABS.map(([id, label, title]) => <button key={id} id={`tab-${id}`} role="tab" title={title} aria-selected={activeTab === id} aria-controls="inspector-panel" onClick={() => dispatch({ type: "setRightTab", tab: id })}>{label}</button>)}</div><select className="more-tools" aria-label="More tools" value={TABS.some(([id]) => id === activeTab) ? '' : activeTab} onChange={(e) => dispatch({ type: "setRightTab", tab: e.target.value as RightTab })}><option value="" disabled>More</option><option value="node">Inspect a dot</option><option value="code">Algorithm steps</option><option value="lab">Experiments</option></select></div></div><div id="inspector-panel" className="inspector-panel" role={TABS.some(([id]) => id === activeTab) ? "tabpanel" : "region"} aria-label={TABS.find(([id]) => id === activeTab)?.[1] ?? "More tools"}><Panel /></div></aside>
+          <aside className="inspector"><div className="inspector-head"><div className="panel-navigation"><div className="tabs" role="tablist" aria-label="Playground panels">{TABS.map(([id, label, title]) => <button key={id} id={`tab-${id}`} role="tab" title={title} aria-selected={activeTab === id} aria-controls="inspector-panel" onClick={() => dispatch({ type: "setRightTab", tab: id })}>{label}</button>)}</div><select className="more-tools" aria-label="More tools" value={TABS.some(([id]) => id === activeTab) ? '' : activeTab} onChange={(e) => dispatch({ type: "setRightTab", tab: e.target.value as RightTab })}><option value="" disabled>More</option><option value="node">Inspect a dot</option><option value="code">Algorithm steps</option><option value="lab">Experiments</option></select></div></div><div id="inspector-panel" className="inspector-panel" role={TABS.some(([id]) => id === activeTab) ? "tabpanel" : "region"} aria-label={TABS.find(([id]) => id === activeTab)?.[1] ?? "More tools"}><OperationNotice /><Panel /></div></aside>
         </main>
       )}
       <div className="mobile-gate" role="alert"><div><Mark /><p className="eyebrow">Desktop instrument</p><h2>The graph needs more room.</h2><p>Open the interactive playground on a desktop or laptop with a viewport at least 900 px wide.</p><a className="button secondary" href="/learn" onClick={(e) => { e.preventDefault(); navigate("learn"); }}>Read the mobile-friendly guide</a></div></div>

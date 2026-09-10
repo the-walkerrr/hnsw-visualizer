@@ -1,10 +1,16 @@
-import { useApp, useDispatch, useShownLayer, useViewGraph, type Tool } from '../state/store'
+import { editsLocked, useApp, useDispatch, useShownLayer, useViewGraph, type Tool } from '../state/store'
 
 const LEGEND: Array<[string, string, string]> = [
   ['--c-query', 'target', 'Your search point'], ['--c-entry', 'start', 'Search starting point'],
   ['--c-current', 'checking', 'Dot being checked'], ['--c-cand', 'to check', 'Dots waiting to be checked'],
   ['--c-w', 'best so far', 'Closest dots found so far'], ['--c-result', 'matches', 'Returned matches'],
 ]
+
+export function TraceLegend() {
+  const { trace } = useApp()
+  if (!trace) return null
+  return <div className="legend" aria-label="Trace legend">{LEGEND.map(([color, label, title]) => <span key={label} title={title}><i style={{ background: `var(${color})` }} />{label}</span>)}</div>
+}
 
 function ToolIcon({ tool }: { tool: Tool }) {
   if (tool === 'search') return <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8" cy="8" r="4.5"/><path d="m11.5 11.5 4 4"/></svg>
@@ -13,7 +19,9 @@ function ToolIcon({ tool }: { tool: Tool }) {
 }
 
 export function CanvasToolbar() {
-  const { viewMode, tool, trace } = useApp()
+  const state = useApp()
+  const { viewMode, tool, trace } = state
+  const locked = editsLocked(state)
   const graph = useViewGraph()
   const { layer } = useShownLayer()
   const dispatch = useDispatch()
@@ -33,10 +41,9 @@ export function CanvasToolbar() {
 
     <div className="canvas-overlay tr">
       <div className="tool-selector" role="group" aria-label="Canvas tool">
-        {(['search', 'insert', 'select'] as const).map((item) => <button key={item} className="tool-btn" aria-pressed={tool === item} onClick={() => dispatch({ type: 'setTool', tool: item })} title={item === 'search' ? 'Place a query' : item === 'insert' ? 'Add a vector' : 'Inspect or move a node'}><ToolIcon tool={item}/><span>{item === 'select' ? 'Inspect' : item}</span></button>)}
+        {(['search', 'insert', 'select'] as const).map((item) => <button key={item} className="tool-btn" disabled={locked} aria-pressed={tool === item} onClick={() => dispatch({ type: 'setTool', tool: item })} title={locked ? 'Finish or end the current operation to change tools' : item === 'search' ? 'Place a query' : item === 'insert' ? 'Add a vector' : 'Inspect or move a node'}><ToolIcon tool={item}/><span>{item === 'select' ? 'Inspect' : item}</span></button>)}
       </div>
     </div>
 
-    {trace && <div className="canvas-overlay bl"><div className="legend" aria-label="Trace legend">{LEGEND.map(([color, label, title]) => <span key={label} title={title}><i style={{ background: `var(${color})` }} />{label}</span>)}</div></div>}
   </>
 }

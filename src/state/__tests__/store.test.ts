@@ -214,3 +214,66 @@ describe('stale ids from a mid-trace snapshot', () => {
     expect(() => reducer(s, { type: 'restoreNode', id: victim })).not.toThrow()
   })
 })
+
+describe('operation isolation', () => {
+  const pendingSearch = () => script(seededState(), [{ t: 'search', at: [500, 320] }])
+
+  it('rejects graph and parameter changes during both paused and playing replays', () => {
+    for (const playing of [false, true]) {
+      const state = { ...pendingSearch(), playing }
+      const id = state.graph.entry!
+      const conflicts: Action[] = [
+        { type: 'moveNode', id, to: [100, 100] },
+        { type: 'beginNodeMove', id },
+        { type: 'deleteNode', id, mode: 'hard' },
+        { type: 'restoreNode', id },
+        { type: 'setParams', patch: { efSearch: 24 } },
+        { type: 'setParams', patch: { M: 10 } },
+        { type: 'setK', k: 2 },
+        { type: 'setTool', tool: 'insert' },
+        { type: 'setUpdateMode', mode: 'in-place' },
+        { type: 'script', ops: [{ t: 'insert', at: [100, 100] }] },
+        { type: 'script', ops: [{ t: 'search', at: [100, 100] }] },
+        { type: 'script', ops: [{ t: 'clear' }, { t: 'preset', id: 'uniform', n: 12 }] },
+      ]
+      for (const action of conflicts) expect(reducer(state, action), `${action.type}, playing=${playing}`).toBe(state)
+      expect(reducer(state, { type: 'select', id }).selected).toBe(id)
+      expect(reducer(state, { type: 'setViewMode', mode: 'layer' }).viewMode).toBe('layer')
+      expect(reducer(state, { type: 'stepBy', delta: 1 }).step).toBeGreaterThan(state.step)
+    }
+  })
+
+  it('protects inserts and unlocks after finishing or explicitly ending the replay', () => {
+    const inserted = script(seededState(), [{ t: 'insert', at: [500, 320] }])
+    expect(reducer(inserted, { type: 'setTool', tool: 'search' })).toBe(inserted)
+    const finished = reducer(inserted, { type: 'seek', index: inserted.trace!.steps.length - 1 })
+    expect(reducer(finished, { type: 'setTool', tool: 'search' }).tool).toBe('search')
+    const ended = reducer(inserted, { type: 'closeTrace' })
+    expect(ended.graph).toBe(inserted.graph)
+    expect(ended.trace).toBeNull()
+    const next = script(ended, [{ t: 'search', at: [200, 200] }])
+    expect(next.trace?.op).toBe('search')
+    expect(next.rightTab).toBe('queues')
+  })
+
+  it('serializes a drag against playback and other operations, then releases its lock', () => {
+    const state = seededState()
+    const id = state.graph.entry!
+    const dragging = reducer(state, { type: 'beginNodeMove', id })
+    expect(dragging.movingNode).toBe(id)
+    for (const action of [
+      { type: 'play' }, { type: 'setViewMode', mode: 'layer' },
+      { type: 'script', ops: [{ t: 'search', at: [100, 100] }] },
+      { type: 'moveNode', id: [...state.graph.nodes.keys()].find((n) => n !== id)!, to: [100, 100] },
+    ] as Action[]) expect(reducer(dragging, action)).toBe(dragging)
+    const cancelled = reducer(dragging, { type: 'cancelNodeMove' })
+    expect(cancelled.movingNode).toBeNull()
+    expect(cancelled.graph).toBe(state.graph)
+    const moved = reducer(dragging, { type: 'moveNode', id, to: [600, 400] })
+    expect(moved.movingNode).toBeNull()
+    expect(moved.graph.nodes.get(id)!.vec).toEqual([600, 400])
+    expect(moved.step).toBe(moved.trace!.steps.length - 1)
+    const replayed = reducer(moved, { type: 'play' })
+    expect(reducer(replayed, { type: 'beginNodeMove', id })).toBe(replayed)
+  })
+})

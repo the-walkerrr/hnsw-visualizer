@@ -17,7 +17,7 @@ import type { Graph, NodeId, Params, Trace, Vec } from '../hnsw/types'
 export type ViewMode = 'layer' | 'stack'
 export type Tool = 'search' | 'insert' | 'select'
 export type Granularity = 'coarse' | 'fine'
-export type RightTab = 'build' | 'params' | 'code' | 'node' | 'metrics' | 'lab'
+export type RightTab = 'build' | 'params' | 'code' | 'node' | 'metrics' | 'lab' | 'queues'
 
 /** Declarative operations. Guide examples and controls both emit these, so the
  *  learn page can put the app into any state without reaching into component internals. */
@@ -52,6 +52,7 @@ export interface AppState {
   tool: Tool
   k: number
   updateMode: 'reinsert' | 'in-place'
+  movingNode: NodeId | null
   rightTab: RightTab
   dataset: { id: PresetId; n: number; seed: number }
 }
@@ -77,6 +78,8 @@ export type Action =
   | { type: 'deleteNode'; id: NodeId; mode: 'soft' | 'hard' }
   | { type: 'restoreNode'; id: NodeId }
   | { type: 'moveNode'; id: NodeId; to: Vec }
+  | { type: 'beginNodeMove'; id: NodeId }
+  | { type: 'cancelNodeMove' }
   | { type: 'closeTrace' }
 
 export type PlaygroundEntry = 'empty' | 'guided'
@@ -105,7 +108,7 @@ export function initialState(): AppState {
     trace: null,
     step: 0,
     playing: false,
-    speed: 3,
+    speed: 1,
     granularity: 'coarse',
     viewMode: 'stack',
     layer: 0,
@@ -114,6 +117,7 @@ export function initialState(): AppState {
     tool: 'insert',
     k: 5,
     updateMode: 'reinsert',
+    movingNode: null,
     rightTab: 'build',
     dataset,
   }
@@ -161,6 +165,7 @@ function withTrace(state: AppState, graph: Graph, trace: Trace): AppState {
     trace,
     step: 0,
     playing: trace.steps.length > 0 && state.playing,
+    rightTab: trace.op === 'search' || trace.op === 'insert' ? 'queues' : state.rightTab,
   }
 }
 
@@ -285,8 +290,34 @@ function applyDelete(state: AppState, id: NodeId, mode: 'soft' | 'hard'): AppSta
   return mode === 'hard' ? { ...next, selected: null } : next
 }
 
+export function replayInProgress(state: AppState): boolean {
+  return !!state.trace && (state.playing || state.step < state.trace.steps.length - 1)
+}
+
+export function editsLocked(state: AppState): boolean {
+  return replayInProgress(state) || state.movingNode !== null
+}
+
+function changesIndexOrOperation(op: ScriptOp): boolean {
+  return !['view', 'selectNearest', 'tab', 'seek', 'closeTrace'].includes(op.t)
+}
+
 export function reducer(state: AppState, action: Action): AppState {
+  // Guard the state boundary as well as the controls: keyboard shortcuts,
+  // pointer releases, and scripted actions must not replace an active replay.
+  if (editsLocked(state)) {
+    if (['setParams', 'setTool', 'setK', 'setUpdateMode', 'deleteNode', 'restoreNode', 'beginNodeMove'].includes(action.type)) return state
+    if (action.type === 'script' && action.ops.some(changesIndexOrOperation)) return state
+    if (action.type === 'moveNode' && (replayInProgress(state) || (state.movingNode !== null && state.movingNode !== action.id))) return state
+  }
+  if (state.movingNode !== null) {
+    if (['play', 'tick', 'stepBy', 'seek', 'closeTrace', 'setViewMode', 'setLayer', 'script'].includes(action.type)) return state
+  }
   switch (action.type) {
+    case 'beginNodeMove':
+      return state.graph.nodes.has(action.id) ? { ...state, movingNode: action.id, selected: action.id } : state
+    case 'cancelNodeMove':
+      return state.movingNode === null ? state : { ...state, movingNode: null }
     case 'script':
       return action.ops.reduce(applyOp, state)
     case 'setParams':
@@ -354,6 +385,7 @@ export function reducer(state: AppState, action: Action): AppState {
         ...withTrace(state, graph, trace),
         step: Math.max(trace.steps.length - 1, 0),
         playing: false,
+        movingNode: null,
       }
     }
     case 'closeTrace':

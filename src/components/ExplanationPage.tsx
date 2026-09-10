@@ -182,6 +182,16 @@ export function ExplanationPage({ onOpenPlayground, onStartFirstSearch }: { onOp
               <div className="term-pair"><div><code>to check · C</code><p>Discovered dots whose neighbors have not been explored yet. The nearest one is checked next.</p></div><div><code>best so far · W</code><p>The closest dots kept so far, including ones already explored. efSearch limits the size of this list.</p></div></div>
             </div>
 
+            <div className="lesson-block" id="w-per-layer">
+              <h3>2.3 · W on each layer—and why</h3>
+              <p>During a query, W is a fresh best-so-far bucket for each layer. It starts with the entry dot; on lower layers, that is the best dot found on the layer above.</p>
+              <div className="term-pair">
+                <div><code>Upper layers · 1 slot</code><p>Keep just the closest dot found so far. These sparse layers quickly find a promising region, not the final matches. A one-slot search keeps this navigation cheap.</p></div>
+                <div><code>Layer 0 · max(efSearch, k) slots</code><p>Keep alternatives because a useful route may first pass through a less-close dot. This can improve accuracy, at the cost of more checks. At least k slots are needed to hold k requested matches.</p></div>
+              </div>
+              <p>For <code>efSearch = 8</code> and <code>k = 5</code>, W’s capacity is <b>L2: 1 → L1: 1 → L0: 8</b>. Only the best dot is passed down, not the whole bucket. Finally, return the closest five eligible dots from W.</p>
+            </div>
+
             <aside className="try-panel"><div><span>TRY IT IN THE PLAYGROUND</span><h3>Replay every decision</h3><p>The example is preloaded. Use the arrows beneath the graph to watch the route one step at a time.</p></div><button className="button primary" onClick={onStartFirstSearch}>Start with an example →</button></aside>
           </section>
 

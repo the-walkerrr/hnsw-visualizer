@@ -9,7 +9,7 @@ import {
 import { edgesOnLayer } from '../hnsw/graph'
 import { distance } from '../hnsw/metric'
 import type { Graph, HNode, NodeId, Step, Vec } from '../hnsw/types'
-import { useApp, useDispatch, useShownLayer, useViewGraph } from '../state/store'
+import { editsLocked, useApp, useDispatch, useShownLayer, useViewGraph } from '../state/store'
 import {
   DEFAULT_CAMERA,
   ZOOM_MAX,
@@ -23,6 +23,7 @@ import {
   type Camera,
 } from './camera'
 import { layerProjector, stackProjector, type Hit, type Projector } from './project'
+import { TraceLegend } from './CanvasToolbar'
 
 const f1 = (x: number) => (Math.abs(x) >= 100 ? x.toFixed(0) : x.toFixed(1))
 
@@ -36,6 +37,7 @@ interface Hover {
 export function GraphCanvas() {
   const state = useApp()
   const dispatch = useDispatch()
+  const locked = editsLocked(state)
   const graph = useViewGraph()
   const svgRef = useRef<SVGSVGElement>(null)
   const worldRef = useRef<SVGGElement>(null)
@@ -106,6 +108,13 @@ export function GraphCanvas() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (state.movingNode !== null) {
+        if (e.key === 'Escape') {
+          setDrag(null)
+          dispatch({ type: 'cancelNodeMove' })
+        }
+        return
+      }
       const t = e.target as HTMLElement | null
       if (t && /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)) return
       if (e.key === '+' || e.key === '=') zoomBy(1.25)
@@ -120,7 +129,9 @@ export function GraphCanvas() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [zoomBy])
+  }, [zoomBy, dispatch, state.movingNode])
+
+  useEffect(() => () => dispatch({ type: 'cancelNodeMove' }), [dispatch])
 
   const sets = useMemo(() => {
     const v = step?.vis
@@ -198,12 +209,19 @@ export function GraphCanvas() {
 
   function onPointerDown(e: ReactPointerEvent) {
     const hit = pick(e)
+    if (locked && hit) {
+      dispatch({ type: 'select', id: hit.id })
+      return
+    }
     if (state.tool === 'select' && (hit || pick(e, 'near'))) {
       const target = hit ?? pick(e, 'near')!
       dispatch({ type: 'select', id: target.id })
       if (hit) {
         const at = graph.nodes.get(hit.id)?.vec
-        if (at) setDrag({ id: hit.id, at, layer: hit.layer })
+        if (at) {
+          dispatch({ type: 'beginNodeMove', id: hit.id })
+          setDrag({ id: hit.id, at, layer: hit.layer })
+        }
         e.currentTarget.setPointerCapture(e.pointerId)
         return
       }
@@ -264,7 +282,8 @@ export function GraphCanvas() {
     if (drag) {
       const original = graph.nodes.get(drag.id)?.vec
       const moved = original ? distance(original, drag.at, 'euclidean') > 4 : false
-      if (moved) dispatch({ type: 'moveNode', id: drag.id, to: drag.at })
+      if (moved && e) dispatch({ type: 'moveNode', id: drag.id, to: drag.at })
+      dispatch({ type: 'cancelNodeMove' })
       setDrag(null)
       gesture.current = null
       setDragging(null)
@@ -274,7 +293,7 @@ export function GraphCanvas() {
     gesture.current = null
     setDragging(null)
     // A press that never moved is a click, so the tool still acts.
-    if (!g || g.moved || !e) return
+    if (!g || g.moved || !e || locked) return
     const spot = dataAt(e)
     if (!spot) return
     if (state.tool === 'insert') dispatch({ type: 'script', ops: [{ t: 'insert', at: spot.at }] })
@@ -299,7 +318,7 @@ export function GraphCanvas() {
     <div
       className={
         'canvas-frame tool-' +
-        state.tool +
+        (locked ? 'locked' : state.tool) +
         (dragging === 'pan' ? ' panning' : dragging === 'rotate' ? ' orbiting' : '')
       }
       ref={frameRef}
@@ -312,10 +331,10 @@ export function GraphCanvas() {
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={() => onPointerUp()}
+        onLostPointerCapture={() => onPointerUp()}
         onContextMenu={(e) => e.preventDefault()}
         onPointerLeave={() => {
           setHover(null)
-          onPointerUp()
         }}
         role="img"
         aria-label="HNSW graph"
@@ -369,7 +388,7 @@ export function GraphCanvas() {
               {step?.vis.query &&
                 step.vis.queryLabel === 'q' &&
                 (!proj.stacked || traceLayer === null || traceLayer === layer) && (
-                  <QueryMark at={step.vis.query} layer={layer} proj={proj} />
+                  <QueryMark at={step.vis.query} layer={layer} proj={proj} zoom={cam.z} />
                 )}
             </g>
           )
@@ -750,25 +769,28 @@ function Nodes({
   )
 }
 
-function QueryMark({ at, layer, proj }: { at: Vec; layer: number; proj: Projector }) {
+function QueryMark({ at, layer, proj, zoom }: { at: Vec; layer: number; proj: Projector; zoom: number }) {
   const [x, y] = proj.to(at, layer)
-  const s = 10
+  const s = proj.nodeR * 1.8
+  const invZoom = 1 / Math.max(zoom, 0.0001)
   return (
-    <g stroke="var(--c-query)" strokeWidth={2.4}>
-      <line x1={x - s} y1={y} x2={x + s} y2={y} />
-      <line x1={x} y1={y - s} x2={x} y2={y + s} />
-      <circle cx={x} cy={y} r={4} fill="var(--c-query)" stroke="none" />
-      <text
-        x={x + 10}
-        y={y + 13}
-        fontSize={11}
-        fontFamily="var(--mono)"
-        fill="var(--c-query)"
-        stroke="none"
-        fontWeight={600}
-      >
-        q
-      </text>
+    <g transform={`translate(${x} ${y})`}>
+      <g transform={`scale(${invZoom})`} stroke="var(--c-query)" strokeWidth={2.4}>
+        <line x1={-s} y1={0} x2={s} y2={0} />
+        <line x1={0} y1={-s} x2={0} y2={s} />
+        <circle cx={0} cy={0} r={proj.nodeR * 1.15} fill="var(--c-query)" stroke="none" />
+        <text
+          x={s + 3}
+          y={s + 3}
+          fontSize={12}
+          fontFamily="var(--mono)"
+          fill="var(--c-query)"
+          stroke="none"
+          fontWeight={600}
+        >
+          q
+        </text>
+      </g>
     </g>
   )
 }
@@ -875,7 +897,7 @@ function CameraControls({
 }) {
   const step = Math.PI / 12
   return (
-    <>
+    <div className="canvas-footer">
       {stacked && (
         <div className="canvas-overlay camera-orientation" title="Shift-drag to orbit · [ ] to spin · , . to tilt">
           <details><summary>Rotate view</summary>
@@ -896,6 +918,7 @@ function CameraControls({
           </details>
         </div>
       )}
+      <TraceLegend />
       <div className="canvas-overlay camera-zoom" title="Scroll to zoom · drag to pan · 0 to reset">
         <div className="segmented" role="group" aria-label="Zoom">
           <button title="Zoom out ( − )" onClick={() => onZoom(1 / 1.3)} disabled={cam.z <= ZOOM_MIN}>
@@ -913,6 +936,6 @@ function CameraControls({
           </button>
         </div>
       </div>
-    </>
+    </div>
   )
 }

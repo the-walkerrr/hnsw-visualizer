@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { ReactElement } from 'react'
 import App from '../../App'
 import { emptyGraph } from '../../hnsw/graph'
+import { distance } from '../../hnsw/metric'
 import { CONTROL_GUIDES } from '../../lessons/controlGuides'
 import {
   DispatchCtx,
@@ -16,6 +17,7 @@ import {
 } from '../../state/store'
 import { CanvasToolbar } from '../CanvasToolbar'
 import { Explainer } from '../Explainer'
+import { OperationNotice } from '../OperationNotice'
 import { ExplanationPage } from '../ExplanationPage'
 import { GraphCanvas } from '../GraphCanvas'
 import { Transport } from '../Transport'
@@ -25,6 +27,7 @@ import { LabPanel } from '../panels/LabPanel'
 import { MetricsPanel } from '../panels/MetricsPanel'
 import { NodePanel } from '../panels/NodePanel'
 import { ParamsPanel } from '../panels/ParamsPanel'
+import { QueuesPanel } from '../panels/QueuesPanel'
 
 /** Render a component against an exact app state. renderToStaticMarkup runs the
  *  whole component tree without a DOM, which is all that is needed to catch
@@ -41,6 +44,7 @@ const script = (state: AppState, ops: ScriptOp[]) => reducer(state, { type: 'scr
 const seededState = () => script(initialState(), [{ t: 'preset', id: 'clusters', n: 48, seed: 7 }])
 
 const PANELS: Array<[RightTab, () => ReactElement]> = [
+  ['queues', () => <QueuesPanel />],
   ['build', () => <BuildPanel />],
   ['params', () => <ParamsPanel />],
   ['code', () => <CodePanel />],
@@ -100,6 +104,38 @@ describe('render smoke', () => {
     expect(render(initialState(), <Explainer onOpenExplanation={() => {}} />)).toContain('Learn the basics')
   })
 
+  it('collapses replay guidance while keeping its controls available', () => {
+    const state = script(seededState(), [{ t: 'search', at: [500, 320] }])
+    const html = render(state, <OperationNotice />)
+    expect(html).toContain('<details class="operation-notice">')
+    expect(html).not.toContain(' open=')
+    expect(html).toContain('<summary>Replay paused')
+    expect(html).toContain('Finish</button>')
+    expect(html).toContain('End replay</button>')
+    expect(render({ ...state, playing: true }, <OperationNotice />)).toContain('<summary>Replay running')
+    expect(render({ ...state, step: state.trace!.steps.length - 1 }, <OperationNotice />)).toBe('')
+    expect(render({ ...initialState(), movingNode: 0 }, <OperationNotice />)).toContain('release to finish, Esc to cancel')
+  })
+
+  it('explains rejected candidates using the live bucket and distance comparison', () => {
+    const state = script(seededState(), [{ t: 'search', at: [500, 320] }])
+    const index = state.trace!.steps.findIndex((step) => step.line === 's12')
+    expect(index).toBeGreaterThanOrEqual(0)
+    const step = state.trace!.steps[index]
+    const candidate = step.graph.nodes.get(step.vis.considering!)!
+    const farthest = step.graph.nodes.get(step.vis.dynamic.at(-1)!)!
+    const html = render({ ...state, step: index }, <Explainer />)
+    expect(html).toContain('class="explainer"')
+    expect(html).toContain(`full (${step.vis.dynamic.length}/${step.vis.searchEf})`)
+    for (const node of [candidate, farthest]) {
+      expect(html).toContain(distance(node.vec, step.vis.query!, step.vis.searchMetric!).toFixed(2))
+    }
+    expect(html).toContain('not closer than W’s farthest dot')
+    expect(html).toContain('W stays unchanged')
+    expect(html).toContain('not added to C (to check)')
+    expect(html).toContain('The search continues with other neighbors and queued dots')
+  })
+
   it('presents the concepts as titled chapters before the optional control reference', () => {
     const html = render(initialState(), <ExplanationPage onOpenPlayground={() => {}} onStartFirstSearch={() => {}} />)
     expect(html).toContain('A visual guide to HNSW')
@@ -111,6 +147,27 @@ describe('render smoke', () => {
     expect(html.match(/<figure/g)?.length).toBeGreaterThanOrEqual(4)
     const visibleText = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ')
     expect(visibleText).not.toMatch(/\b(?:Params|Code|Metrics) tab\b/)
+  })
+
+  it('explains per-layer W capacities and their purpose in Learn and live queues', () => {
+    const learn = render(initialState(), <ExplanationPage onOpenPlayground={() => {}} onStartFirstSearch={() => {}} />)
+    expect(learn).toContain('id="w-per-layer"')
+    expect(learn).toContain('W on each layer—and why')
+    expect(learn).toContain('Upper layers · 1 slot')
+    expect(learn).toContain('Layer 0 · max(efSearch, k) slots')
+    expect(learn).toContain('Only the best dot is passed down, not the whole bucket')
+
+    const state = script(seededState(), [{ t: 'search', at: [500, 320] }])
+    for (const base of [false, true]) {
+      const index = state.trace!.steps.findIndex((step) => step.line === 's2' && (step.vis.layer === 0) === base)
+      expect(index).toBeGreaterThanOrEqual(0)
+      const html = render({ ...state, step: index }, <QueuesPanel />)
+      expect(html).toContain(base ? 'alternative routes for better accuracy' : 'One slot keeps navigation fast')
+      expect(html).toContain('href="/learn#w-per-layer"')
+    }
+    const insert = script(seededState(), [{ t: 'insert', at: [500, 320] }])
+    const index = insert.trace!.steps.findIndex((step) => step.line === 's2')
+    expect(render({ ...insert, step: index }, <QueuesPanel />)).not.toContain('Why these sizes?')
   })
 
   it('gives every adjustable control a Learn anchor and input-specific explanations', () => {

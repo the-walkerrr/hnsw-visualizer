@@ -4,7 +4,7 @@ import { emptyGraph } from '../../hnsw/graph'
 import { efSweep, graphStats, recallAt } from '../../hnsw/metrics'
 import { preset } from '../../hnsw/presets'
 import type { Graph, Params, Vec } from '../../hnsw/types'
-import { useApp } from '../../state/store'
+import { editsLocked, useApp } from '../../state/store'
 import { BarChart, LineChart } from '../Charts'
 
 const EFS = [1, 2, 4, 8, 16, 32, 64, 128]
@@ -31,7 +31,8 @@ function measure(graph: Graph, params: Params, queries: Vec[], k: number) {
 }
 
 export function LabPanel() {
-  const { params, graph, dataset, k } = useApp()
+  const state = useApp()
+  const { params, graph, dataset, k } = state
   const [efRows, setEfRows] = useState<ReturnType<typeof efSweep> | null>(null)
   const [mRows, setMRows] = useState<Row[] | null>(null)
   const [ruleRows, setRuleRows] = useState<Array<{ rule: string; recall: number; distCalls: number }> | null>(
@@ -65,7 +66,7 @@ export function LabPanel() {
       <div className="section-title">The recall dial: ef<sub>search</sub></div>
       <button
         className="iconbtn primary"
-        disabled={busy !== null || vectors.length < 8}
+        disabled={editsLocked(state) || busy !== null || vectors.length < 8}
         onClick={() => run('ef', () => setEfRows(efSweep(graph, params, queries, k, EFS)))}
       >
         {busy === 'ef' ? 'running…' : 'run ef sweep'}
@@ -123,7 +124,7 @@ export function LabPanel() {
       <div className="section-title">Edge budget: M</div>
       <button
         className="iconbtn primary"
-        disabled={busy !== null || vectors.length < 8}
+        disabled={editsLocked(state) || busy !== null || vectors.length < 8}
         onClick={() =>
           run('m', () =>
             setMRows(
@@ -201,7 +202,7 @@ export function LabPanel() {
       <div className="section-title">Selection rule: heuristic vs simple</div>
       <button
         className="iconbtn primary"
-        disabled={busy !== null || vectors.length < 8}
+        disabled={editsLocked(state) || busy !== null || vectors.length < 8}
         onClick={() =>
           run('rule', () =>
             setRuleRows(

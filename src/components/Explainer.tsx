@@ -1,4 +1,5 @@
 import { useApp } from '../state/store'
+import { distance } from '../hnsw/metric'
 import { RichText } from './RichText'
 
 const TOOL_HINT: Record<string, { headline: string; body: string }> = {
@@ -17,7 +18,7 @@ const TOOL_HINT: Record<string, { headline: string; body: string }> = {
 }
 
 export function Explainer({ onOpenExplanation }: { onOpenExplanation?: () => void }) {
-  const { trace, step, tool, rightTab } = useApp()
+  const { trace, step, tool, rightTab, params } = useApp()
   const current = trace?.steps[step]
 
   if (!current || !trace) {
@@ -39,13 +40,20 @@ export function Explainer({ onOpenExplanation }: { onOpenExplanation?: () => voi
   }
 
   const dot = (id: number | undefined) => id === undefined ? 'this dot' : `dot ${current.graph.nodes.get(id)?.label ?? id}`
+  const considered = current.graph.nodes.get(current.vis.considering!)
+  const farthest = current.graph.nodes.get(current.vis.dynamic.at(-1)!)
+  const query = current.vis.query
+  const metric = current.vis.searchMetric ?? params.metric
+  const rejectionComparison = considered && farthest && query
+    ? `This dot is ${distance(considered.vec, query, metric).toFixed(2)} from the target—not closer than W’s farthest dot (${distance(farthest.vec, query, metric).toFixed(2)}).`
+    : 'This dot is not closer to the target than W’s farthest dot.'
   const searchCopy: Record<string, { title: string; detail: string }> = {
     k2: { title: current.graph.entry === null ? 'No dots to search yet.' : 'Start at the top of the map.', detail: current.graph.entry === null ? 'Add some dots in Explore first.' : 'Every search starts at the same dot on the highest layer. From here, it looks for routes toward your target.' },
     s2: { title: `Search layer ${current.vis.layer}.`, detail: current.vis.layer === 0 ? 'This layer holds every dot. Keep several possible matches in play to explore the area around your target.' : 'Use the shortcuts on this layer to get closer to your target.' },
     s9: { title: `Follow the connections from ${dot(current.vis.current)}.`, detail: 'This is the closest dot still waiting to be checked. Look at its neighbors for a better match.' },
     s10: { title: `Skip ${dot(current.vis.considering)}.`, detail: 'It was already checked on this layer. Skipping it avoids going around in circles.' },
     s13: { title: `Keep ${dot(current.vis.considering)} as a possible match.`, detail: 'It is close enough to join the best matches so far, or there is still room. Its connections can lead to more matches.' },
-    s12: { title: `Skip ${dot(current.vis.considering)}.`, detail: 'The list of possible matches is full, and every dot on it is closer. Continue along the other routes.' },
+    s12: { title: `Skip ${dot(current.vis.considering)}.`, detail: `W (best so far) is full (${current.vis.dynamic.length}/${current.vis.searchEf ?? current.vis.dynamic.length}). ${rejectionComparison} W stays unchanged, and this dot is not added to C (to check). The search continues with other neighbors and queued dots.` },
     s8: { title: 'Stop exploring this layer.', detail: 'The next dot waiting to be checked is farther away than the matches already kept. The search stops here to save work.' },
     s15: { title: `Finished checking layer ${current.vis.layer}.`, detail: current.vis.layer === 0 ? 'The search has a shortlist. Next, return the closest matches from it.' : 'Keep the closest dot found here as the starting point for the next layer.' },
     k4: { title: 'Move down one layer.', detail: 'Use the best position found so far. The next layer has more dots for a closer look.' },

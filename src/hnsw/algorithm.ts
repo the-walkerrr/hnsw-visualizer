@@ -185,6 +185,8 @@ class Run {
     this.layersTouched.add(lc)
     this.vis.layer = lc
     this.vis.entryPoints = entryPoints.slice()
+    this.vis.searchEf = ef
+    this.vis.searchMetric = this.params.metric
 
     const visited = new Set<NodeId>(entryPoints)
     const C = new CandList()

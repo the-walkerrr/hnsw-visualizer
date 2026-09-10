@@ -32,4 +32,9 @@ describe('session persistence', () => {
     expect(deserializeState('not json')).toBeNull()
     expect(deserializeState('{"version":2,"state":{}}')).toBeNull()
   })
+
+  it('never restores an unfinished pointer gesture', () => {
+    const state = { ...initialState(), movingNode: 42 }
+    expect(deserializeState(serializeState(state))!.movingNode).toBeNull()
+  })
 })
