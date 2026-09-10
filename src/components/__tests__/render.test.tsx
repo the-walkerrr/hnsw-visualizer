@@ -8,6 +8,7 @@ import {
   DispatchCtx,
   StateCtx,
   initialState,
+  playgroundEntryActions,
   reducer,
   type AppState,
   type RightTab,
@@ -99,18 +100,21 @@ describe('render smoke', () => {
     expect(render(initialState(), <Explainer onOpenExplanation={() => {}} />)).toContain('Learn the basics')
   })
 
-  it('introduces the map before offering optional control details', () => {
-    const html = render(initialState(), <ExplanationPage onOpenPlayground={() => {}} />)
-    expect(html).toContain('HNSW, in two minutes')
-    expect(html).toContain('Dots are items')
-    expect(html).toContain('Watch one search')
-    expect(html.indexOf('Dots are items')).toBeLessThan(html.indexOf('Optional reference'))
+  it('presents the concepts as titled chapters before the optional control reference', () => {
+    const html = render(initialState(), <ExplanationPage onOpenPlayground={() => {}} onStartFirstSearch={() => {}} />)
+    expect(html).toContain('A visual guide to HNSW')
+    expect(html).toContain('First, turn similarity into a map')
+    expect(html).toContain('A search repeatedly asks one question')
+    expect(html).toContain('Spend more work to miss less often')
+    expect(html).toContain('Every new vector finds its own place')
+    expect(html.indexOf('First, turn similarity into a map')).toBeLessThan(html.indexOf('Optional reference'))
+    expect(html.match(/<figure/g)?.length).toBeGreaterThanOrEqual(4)
     const visibleText = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ')
     expect(visibleText).not.toMatch(/\b(?:Params|Code|Metrics) tab\b/)
   })
 
   it('gives every adjustable control a Learn anchor and input-specific explanations', () => {
-    const learn = render(initialState(), <ExplanationPage onOpenPlayground={() => {}} />)
+    const learn = render(initialState(), <ExplanationPage onOpenPlayground={() => {}} onStartFirstSearch={() => {}} />)
     const panels = `${render(initialState(), <BuildPanel />)}${render(initialState(), <ParamsPanel />)}`
     for (const guide of Object.values(CONTROL_GUIDES)) {
       expect(learn, guide.label).toContain(`id="${guide.id}"`)
@@ -136,6 +140,25 @@ describe('render smoke', () => {
     expect(render(initialState(), <BuildPanel />)).toContain('aria-label="Vectors value" min="0" max="400" value="0"')
     const inserted = script(initialState(), [{ t: 'insert', at: [500, 320] }])
     expect(render(inserted, <BuildPanel />)).toContain('aria-label="Vectors value" min="0" max="400" value="1"')
+  })
+
+  it('keeps ordinary playground entry empty and seeds only the guided first search', () => {
+    const empty = initialState()
+    const direct = playgroundEntryActions(empty, 'empty').reduce(reducer, empty)
+    expect(direct.graph.nodes.size).toBe(0)
+    expect(direct.tool).toBe('insert')
+
+    const guided = playgroundEntryActions(empty, 'guided').reduce(reducer, empty)
+    expect(guided.graph.nodes.size).toBe(48)
+    expect(guided.dataset).toEqual({ id: 'clusters', n: 48, seed: 7 })
+    expect(guided.tool).toBe('search')
+    expect(guided.rightTab).toBe('build')
+  })
+
+  it('labels the Learn-page seeded and empty playground paths distinctly', () => {
+    const html = render(initialState(), <ExplanationPage onOpenPlayground={() => {}} onStartFirstSearch={() => {}} />)
+    expect(html).toContain('Start with an example')
+    expect(html).toContain('Open an empty playground')
   })
 
   it.each(SCENARIOS)('canvas + transport + explainer render: %s', (_name, state) => {

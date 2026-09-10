@@ -79,6 +79,23 @@ export type Action =
   | { type: 'moveNode'; id: NodeId; to: Vec }
   | { type: 'closeTrace' }
 
+export type PlaygroundEntry = 'empty' | 'guided'
+
+const FIRST_SEARCH_EXAMPLE = { id: 'clusters' as const, n: 48, seed: 7 }
+
+export function playgroundEntryActions(state: Pick<AppState, 'graph'>, entry: PlaygroundEntry): Action[] {
+  if (entry === 'empty') return []
+  const actions: Action[] = []
+  if (state.graph.nodes.size === 0) {
+    actions.push({
+      type: 'script',
+      ops: [{ t: 'preset', ...FIRST_SEARCH_EXAMPLE }, { t: 'tool', tool: 'search' }],
+    })
+  }
+  actions.push({ type: 'setRightTab', tab: 'build' }, { type: 'setTool', tool: 'search' })
+  return actions
+}
+
 export function initialState(): AppState {
   const dataset = { id: 'clusters' as PresetId, n: 48, seed: 7 }
   const params = { ...DEFAULT_PARAMS }
@@ -330,7 +347,14 @@ export function reducer(state: AppState, action: Action): AppState {
         action.to,
         state.updateMode,
       )
-      return withTrace(state, graph, trace)
+      // A direct manipulation should show its result immediately. The trace is
+      // still retained and can be scrubbed backwards, but opening it at frame 0
+      // made a successful move look as though the node had snapped back.
+      return {
+        ...withTrace(state, graph, trace),
+        step: Math.max(trace.steps.length - 1, 0),
+        playing: false,
+      }
     }
     case 'closeTrace':
       return { ...state, trace: null, step: 0, playing: false }

@@ -65,6 +65,8 @@ describe('operations through the reducer', () => {
     expect(after.graph.nodes.size).toBe(s.graph.nodes.size)
     expect(after.graph.nodes.get(id)!.vec).toEqual([640, 500])
     expect(after.trace?.op).toBe('update-reinsert')
+    expect(after.step).toBe(after.trace!.steps.length - 1)
+    expect(after.trace!.steps[after.step].graph.nodes.get(id)!.vec).toEqual([640, 500])
   })
 
   it('a structural parameter change rebuilds over the same vectors in the same order', () => {

@@ -137,11 +137,14 @@ export function GraphCanvas() {
   /** Pointer → data coordinates, plus which layer's plane was clicked. The
    *  camera transform lives on the world group, so its own CTM does the
    *  zoom/pan/rotate inverse for us. */
-  function dataAt(e: { clientX: number; clientY: number }): Hit | null {
+  function dataAt(
+    e: { clientX: number; clientY: number },
+    targetLayers: number[] = layers,
+  ): Hit | null {
     const ctm = worldRef.current?.getScreenCTM()
     if (!ctm) return null
     const pt = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse())
-    return proj.from([pt.x, pt.y], layers)
+    return proj.from([pt.x, pt.y], targetLayers)
   }
 
   /**
@@ -218,7 +221,10 @@ export function GraphCanvas() {
 
   function onPointerMove(e: ReactPointerEvent) {
     if (drag) {
-      const spot = dataAt(e)
+      // In the stacked view several layer planes overlap in screen space. Once
+      // a drag begins, keep projecting onto the plane the node was picked on;
+      // otherwise the pointer can cross a nearer plane and make the node jump.
+      const spot = dataAt(e, [drag.layer])
       if (spot) setDrag({ ...drag, at: spot.at })
       return
     }

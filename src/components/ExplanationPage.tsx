@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { CONTROL_GUIDES, type ControlGuide } from '../lessons/controlGuides'
 
 function ControlCard({ guide }: { guide: ControlGuide }) {
@@ -13,7 +13,108 @@ function ControlCard({ guide }: { guide: ControlGuide }) {
   </details>
 }
 
-export function ExplanationPage({ onOpenPlayground }: { onOpenPlayground: () => void }) {
+function Visual({ title, children }: { title: string; children: ReactNode }) {
+  return <figure className="lesson-visual">
+    <div className="visual-label"><span aria-hidden="true">VISUAL</span>{title}</div>
+    {children}
+  </figure>
+}
+
+function VectorMapVisual() {
+  return <Visual title="Meaning becomes position">
+    <svg viewBox="0 0 720 250" role="img" aria-labelledby="vector-map-title vector-map-desc">
+      <title id="vector-map-title">Items become points in a vector space</title>
+      <desc id="vector-map-desc">Three example items are converted into numbered vectors and placed near similar items on a two-dimensional map.</desc>
+      <g className="visual-card">
+        <rect x="24" y="34" width="160" height="48" rx="7" /><text x="42" y="56">jazz playlist</text><text className="muted" x="42" y="71">audio</text>
+        <rect x="24" y="101" width="160" height="48" rx="7" /><text x="42" y="123">saxophone solo</text><text className="muted" x="42" y="138">audio</text>
+        <rect x="24" y="168" width="160" height="48" rx="7" /><text x="42" y="190">mountain photo</text><text className="muted" x="42" y="205">image</text>
+      </g>
+      <g className="visual-arrow"><path d="M205 58h82" /><path d="m277 51 10 7-10 7" /><path d="M205 125h82" /><path d="m277 118 10 7-10 7" /><path d="M205 192h82" /><path d="m277 185 10 7-10 7" /></g>
+      <g className="vector-values"><text x="309" y="61">[0.82, 0.71, …]</text><text x="309" y="128">[0.79, 0.75, …]</text><text x="309" y="195">[0.13, 0.24, …]</text></g>
+      <path className="visual-divider" d="M461 20v210" />
+      <g className="visual-edge"><path d="M537 73 574 96 611 67M537 73l74-6M574 96l54 20M611 67l17 49" /><path d="M520 184 565 165 612 191M565 165l47 26" /></g>
+      <g className="visual-node"><circle cx="537" cy="73" r="7" /><circle cx="574" cy="96" r="7" /><circle cx="611" cy="67" r="7" /><circle cx="628" cy="116" r="7" /></g>
+      <g className="visual-node secondary"><circle cx="520" cy="184" r="7" /><circle cx="565" cy="165" r="7" /><circle cx="612" cy="191" r="7" /></g>
+      <text className="visual-caption" x="546" y="35">similar audio</text><text className="visual-caption" x="546" y="225">images</text>
+    </svg>
+    <figcaption>The real vectors may have hundreds of dimensions. The playground uses two so you can see distance directly.</figcaption>
+  </Visual>
+}
+
+function LayersVisual() {
+  return <Visual title="Express lanes above, detail below">
+    <svg viewBox="0 0 720 310" role="img" aria-labelledby="layers-title layers-desc">
+      <title id="layers-title">Three HNSW graph layers</title>
+      <desc id="layers-desc">A search makes one long jump on a sparse top layer, then descends through denser layers and finishes near the query.</desc>
+      <g className="layer-plane"><path d="m90 38 525 0 48 45-525 0Z" /><path d="m70 126 545 0 48 45-545 0Z" /><path d="m50 220 565 0 48 45-565 0Z" /></g>
+      <g className="layer-label"><text x="30" y="64">L2</text><text x="30" y="152">L1</text><text x="30" y="246">L0</text></g>
+      <g className="visual-edge"><path d="M176 61h277M147 149l112-4 114 6 138-3M115 244l75-7 72 14 75-12 76 18 77-15 83 12" /></g>
+      <g className="visual-node"><circle cx="176" cy="61" r="7" /><circle cx="453" cy="61" r="7" /><circle cx="147" cy="149" r="6" /><circle cx="259" cy="145" r="6" /><circle cx="373" cy="151" r="6" /><circle cx="511" cy="148" r="6" /><circle cx="115" cy="244" r="5" /><circle cx="190" cy="237" r="5" /><circle cx="262" cy="251" r="5" /><circle cx="337" cy="239" r="5" /><circle cx="413" cy="257" r="5" /><circle cx="490" cy="242" r="5" /><circle cx="573" cy="254" r="5" /></g>
+      <g className="layer-vertical"><path d="M176 68 147 142M453 68l58 74M147 155l-32 83M259 151l3 94M373 157l40 94M511 154l62 94" /></g>
+      <path className="search-route" d="M176 61h277l58 87-138 3 40 106 77-15" />
+      <g className="route-points"><circle cx="176" cy="61" r="8" /><circle cx="453" cy="61" r="8" /><circle cx="511" cy="148" r="8" /><circle cx="373" cy="151" r="8" /><circle cx="413" cy="257" r="8" /><circle className="result" cx="490" cy="242" r="9" /></g>
+      <g className="query-mark"><path d="m530 219 14 14m0-14-14 14" /></g>
+      <text className="visual-caption" x="555" y="211">query</text>
+    </svg>
+    <figcaption>Every dot lives on layer 0. A few are promoted to upper layers, where their longer links cross the map quickly.</figcaption>
+  </Visual>
+}
+
+function SearchVisual() {
+  return <Visual title="One search, four decisions">
+    <svg viewBox="0 0 720 270" role="img" aria-labelledby="search-title search-desc">
+      <title id="search-title">A greedy graph search moving toward a query</title>
+      <desc id="search-desc">The route begins at an entry point, checks connected nodes, keeps promising candidates, and returns the nearest result.</desc>
+      <g className="visual-edge"><path d="M82 87 185 58 273 106 365 68 449 126 548 83M185 58l80 108M273 106l-8 60M365 68l84 58M265 166l111 34 73-74M376 200l116 10 56-127" /></g>
+      <g className="visual-node"><circle cx="82" cy="87" r="8" /><circle cx="185" cy="58" r="7" /><circle cx="273" cy="106" r="7" /><circle cx="365" cy="68" r="7" /><circle cx="449" cy="126" r="7" /><circle cx="548" cy="83" r="7" /><circle cx="265" cy="166" r="7" /><circle cx="376" cy="200" r="7" /><circle cx="492" cy="210" r="7" /></g>
+      <path className="search-route" d="M82 87 185 58 273 106 449 126 492 210" />
+      <g className="route-points"><circle cx="82" cy="87" r="10" /><circle cx="185" cy="58" r="9" /><circle cx="273" cy="106" r="9" /><circle cx="449" cy="126" r="9" /><circle className="result" cx="492" cy="210" r="11" /></g>
+      <g className="step-number"><circle cx="60" cy="56" r="13" /><text x="60" y="60">1</text><circle cx="251" cy="73" r="13" /><text x="251" y="77">2</text><circle cx="425" cy="94" r="13" /><text x="425" y="98">3</text><circle cx="514" cy="184" r="13" /><text x="514" y="188">4</text></g>
+      <g className="query-mark"><path d="m552 200 16 16m0-16-16 16" /></g>
+      <text className="visual-caption" x="579" y="213">q</text>
+    </svg>
+    <figcaption>At each stop, HNSW measures only connected neighbors. It keeps moving while one of them brings the search closer to <b>q</b>.</figcaption>
+  </Visual>
+}
+
+function BeamVisual() {
+  return <Visual title="Search effort controls how many routes survive">
+    <svg viewBox="0 0 720 270" role="img" aria-labelledby="beam-title beam-desc">
+      <title id="beam-title">Comparison of narrow and wide HNSW searches</title>
+      <desc id="beam-desc">A narrow search follows one route and gets trapped, while a wider search keeps alternatives and reaches the true nearest result with more distance checks.</desc>
+      <path className="visual-divider" d="M360 18v220" />
+      <g className="visual-edge"><path d="M54 137 113 90 178 130 245 81 305 118M113 90l57 101M178 130l-8 61M245 81l60 37" /><path d="M414 137 473 90 538 130 605 81 665 118M473 90l57 101M538 130l-8 61M605 81l60 37M530 191l76 29 59-102" /></g>
+      <g className="visual-node"><circle cx="54" cy="137" r="7" /><circle cx="113" cy="90" r="7" /><circle cx="178" cy="130" r="7" /><circle cx="245" cy="81" r="7" /><circle cx="305" cy="118" r="7" /><circle cx="170" cy="191" r="7" /><circle cx="414" cy="137" r="7" /><circle cx="473" cy="90" r="7" /><circle cx="538" cy="130" r="7" /><circle cx="605" cy="81" r="7" /><circle cx="665" cy="118" r="7" /><circle cx="530" cy="191" r="7" /><circle cx="606" cy="220" r="7" /></g>
+      <path className="search-route narrow" d="M54 137 113 90 178 130 170 191" /><path className="search-route" d="M414 137 473 90 538 130 530 191 606 220 665 118" />
+      <g className="query-mark"><path d="m286 194 14 14m0-14-14 14M646 194l14 14m0-14-14 14" /></g>
+      <circle className="false-result" cx="170" cy="191" r="11" /><circle className="true-result" cx="606" cy="220" r="11" />
+      <text className="panel-title" x="38" y="34">Narrow beam · efSearch = 2</text><text className="panel-title" x="398" y="34">Wider beam · efSearch = 8</text>
+      <text className="visual-caption" x="38" y="246">less work · can stop early</text><text className="visual-caption" x="398" y="246">more work · better chance of exact recall</text>
+    </svg>
+  </Visual>
+}
+
+function BuildVisual() {
+  return <Visual title="How a new dot joins the graph">
+    <svg viewBox="0 0 720 250" role="img" aria-labelledby="build-title build-desc">
+      <title id="build-title">Three stages of inserting a node into HNSW</title>
+      <desc id="build-desc">A random draw chooses the node height, an existing graph search finds candidates, and the new node keeps a small diverse set of connections.</desc>
+      <g className="stage-divider"><path d="M240 20v205M480 20v205" /></g>
+      <g className="stage-number"><text x="28" y="39">01</text><text x="268" y="39">02</text><text x="508" y="39">03</text></g>
+      <g className="stage-title"><text x="28" y="64">Choose a height</text><text x="268" y="64">Search for neighbors</text><text x="508" y="64">Keep useful links</text></g>
+      <g className="height-bars"><rect x="52" y="159" width="24" height="35" rx="3" /><rect x="91" y="125" width="24" height="69" rx="3" /><rect x="130" y="159" width="24" height="35" rx="3" /><rect className="chosen" x="169" y="90" width="24" height="104" rx="3" /></g>
+      <g className="visual-edge"><path d="M280 157 327 105 378 153 434 112M327 105l107 7M378 153l56-41" /><path d="M520 159 577 108 632 151M577 108l73-27M577 108l55 43" /></g>
+      <g className="visual-node"><circle cx="280" cy="157" r="7" /><circle cx="327" cy="105" r="7" /><circle cx="378" cy="153" r="7" /><circle cx="434" cy="112" r="7" /><circle cx="520" cy="159" r="7" /><circle cx="577" cy="108" r="7" /><circle cx="632" cy="151" r="7" /><circle cx="650" cy="81" r="7" /></g>
+      <g className="new-node"><circle cx="390" cy="87" r="9" /><circle cx="592" cy="184" r="9" /></g>
+      <g className="candidate-edge"><path d="M390 87 327 105M390 87l44 25M390 87l-12 66" /></g>
+      <g className="kept-edge"><path d="M592 184 520 159M592 184l40-33M592 184l58-103" /></g>
+      <text className="visual-caption" x="28" y="220">Most dots stay on L0</text><text className="visual-caption" x="268" y="220">efConstruction sets the pool</text><text className="visual-caption" x="508" y="220">M sets the target count</text>
+    </svg>
+  </Visual>
+}
+
+export function ExplanationPage({ onOpenPlayground, onStartFirstSearch }: { onOpenPlayground: () => void; onStartFirstSearch: () => void }) {
   useEffect(() => {
     const reveal = () => {
       let id: string
@@ -35,49 +136,118 @@ export function ExplanationPage({ onOpenPlayground }: { onOpenPlayground: () => 
   return <main className="explanation-page beginner-guide">
     <div className="guide-wrap">
       <header className="guide-hero">
-        <p className="section-kicker">HNSW, in two minutes</p>
-        <h1>Find nearby things.<br />Skip most of the work.</h1>
-        <p>Imagine finding songs similar to one you love. HNSW uses a map of connections to find close matches quickly.</p>
-        <nav className="guide-shortcuts" aria-label="Guide contents"><a href="#start-here">The idea ↓</a><a href="#first-search">Try it ↓</a><a href="#parameter-guide">Controls ↓</a></nav>
+        <p className="section-kicker">A visual guide to HNSW</p>
+        <h1>Find the nearest neighbors without checking everything.</h1>
+        <p>HNSW turns vectors into a layered map. A query follows a small number of promising connections, making large jumps first and precise local moves last.</p>
+        <div className="landing-actions">
+          <button className="button primary" onClick={onStartFirstSearch}>Watch a search <span aria-hidden="true">→</span></button>
+          <a className="button quiet" href="#chapter-map">Start reading</a>
+        </div>
       </header>
 
-      <section id="start-here" className="guide-section">
-        <div className="guide-section-heading"><span>01</span><h2>It’s a map with shortcuts.</h2></div>
-        <div className="concept-cards">
-          <article><div className="concept-art" aria-hidden="true"><svg viewBox="0 0 240 100"><g className="concept-dots"><circle cx="55" cy="45" r="7"/><circle cx="80" cy="65" r="7"/><circle cx="91" cy="32" r="7"/><circle cx="167" cy="43" r="7"/><circle cx="188" cy="65" r="7"/><circle cx="199" cy="30" r="7"/></g></svg></div><h3>Dots are items</h3><p>Each dot is a song, photo, or piece of text. Similar items sit close together. These dots are called <b>vectors</b>.</p></article>
-          <article><div className="concept-art" aria-hidden="true"><svg viewBox="0 0 240 100"><path className="concept-lines" d="m42 65 43-35 35 40 39-41 39 28M85 30l74-1M42 65l78 5 78-13"/><g className="concept-dots"><circle cx="42" cy="65" r="6"/><circle cx="85" cy="30" r="6"/><circle cx="120" cy="70" r="6"/><circle cx="159" cy="29" r="6"/><circle cx="198" cy="57" r="6"/></g></svg></div><h3>Lines are routes</h3><p>Lines connect dots. A search follows these routes toward your target instead of checking every item.</p></article>
-          <article><div className="concept-art" aria-hidden="true"><svg viewBox="0 0 240 100"><path className="concept-lines" d="M35 75h170M65 25h110M65 25v50M175 25v50"/><path className="concept-route" d="M65 25h110v50h30"/><g className="concept-dots"><circle cx="65" cy="25" r="6"/><circle cx="175" cy="25" r="6"/><circle cx="35" cy="75" r="5"/><circle cx="65" cy="75" r="5"/><circle cx="100" cy="75" r="5"/><circle cx="140" cy="75" r="5"/><circle cx="175" cy="75" r="5"/><circle cx="205" cy="75" r="5"/></g></svg></div><h3>Layers add shortcuts</h3><p>Upper layers make big jumps. The bottom layer holds every dot and finishes the search nearby.</p></article>
-        </div>
-        <p className="guide-takeaway">The trade-off: searching fewer dots is faster, but it can miss a close match.</p>
-      </section>
+      <div className="guide-layout">
+        <nav className="guide-toc" aria-label="Learn HNSW contents">
+          <span className="toc-label">In this guide</span>
+          <a href="#chapter-map"><span>01</span>The map</a>
+          <a href="#chapter-search"><span>02</span>The search</a>
+          <a href="#chapter-quality"><span>03</span>Speed & accuracy</a>
+          <a href="#lesson-4"><span>04</span>Building the index</a>
+          <a href="#parameter-guide"><span>05</span>Control reference</a>
+        </nav>
 
-      <section id="first-search" className="guide-section guide-try">
-        <div>
-          <div className="guide-section-heading"><span>02</span><h2>Watch one search.</h2></div>
-          <ol className="quick-steps"><li>Open the playground and click <b>Run a search</b>.</li><li>Press <b>Play</b>, or use the arrows to follow each step.</li><li>Open <b>Results</b> to see how many close matches it found.</li></ol>
-          <div className="guide-colors"><span><i className="query-symbol">＋</i> Your search</span><span><i className="result-symbol" /> Matches found</span></div>
-        </div>
-        <button className="button primary" onClick={onOpenPlayground}>Open playground <span aria-hidden="true">→</span></button>
-      </section>
+        <div className="guide-content">
+          <section id="chapter-map" className="guide-chapter">
+            <header className="chapter-heading"><span>01</span><div><p className="section-kicker">From data to graph</p><h2>First, turn similarity into a map.</h2><p>HNSW works because distance in vector space carries meaning: items with similar content land near one another.</p></div></header>
 
-      <section id="parameter-guide" className="guide-section">
-        <div className="guide-section-heading"><span>03</span><h2>Change one thing at a time.</h2></div>
-        <p className="guide-section-intro">Start with the defaults. When you’re curious, try these in the playground.</p>
-        <div className="starter-settings">
-          <div><b>Results requested · k</b><p>How many matches you want. Try 1, then 5.</p></div>
-          <div><b>Search effort · efSearch</b><p>How many possible matches to keep. More effort can find better answers.</p></div>
-          <div><b>Connections · M</b><p>How many routes a new dot chooses. More routes use more memory.</p></div>
-        </div>
-        <details className="learn-disclosure reference-library"><summary>All controls and their inputs <span>Optional reference</span></summary><div className="disclosure-content">{Object.values(CONTROL_GUIDES).map((guide) => <ControlCard key={guide.id} guide={guide} />)}</div></details>
-      </section>
+            <div className="lesson-block">
+              <h3>1.1 · An item becomes a vector</h3>
+              <p>A model converts each song, image, or paragraph into a list of numbers called an <b>embedding</b>. That list is its vector. Nearby vectors represent items the model considers similar.</p>
+              <VectorMapVisual />
+            </div>
 
-      <section className="guide-section guide-questions" aria-label="A little more detail">
-        <h2>A little more detail</h2>
-        <details id="lesson-4" className="learn-disclosure"><summary>How does a new dot join the map?</summary><div className="disclosure-content"><p>It gets a randomly chosen height, searches for nearby dots, and connects to a few of them. <b>efConstruction</b> controls how many possible neighbors it keeps while searching. <b>M</b> controls how many it connects to.</p><p>Changing these settings rebuilds the map. You can watch this happen with the <b>Insert</b> tool.</p></div></details>
-        <details id="lesson-6" className="learn-disclosure"><summary>What happens during a search?</summary><div className="disclosure-content"><p>The search starts at the top, follows links toward your target, and moves down a layer at a time. At the bottom, it keeps several possible matches in play.</p><p><b>efSearch</b> sets that pool’s size; <b>k</b> is how many answers you ask for. A larger pool costs more work but can help find matches the search would otherwise miss.</p></div></details>
-        <details className="learn-disclosure"><summary>What does “recall” mean?</summary><div className="disclosure-content"><p>It’s the share of the true closest matches the search found. If it finds 4 of the closest 5, recall is 80%. The Results tab compares the search with checking every dot.</p></div></details>
-      </section>
-      <footer className="guide-footer"><span>That’s enough to get started.</span><button className="button secondary" onClick={onOpenPlayground}>Try it yourself →</button></footer>
+            <div className="lesson-block">
+              <h3>1.2 · Connections replace a full scan</h3>
+              <p>The exact answer comes from measuring the query against every stored vector. HNSW takes a shortcut: each vector keeps links to a few useful neighbors, so the search can move through the data instead of scanning all of it.</p>
+              <div className="comparison-strip"><div><span>Exact search</span><strong>Check every dot</strong><p>Perfect answer, work grows with the collection.</p></div><div><span>HNSW search</span><strong>Follow promising links</strong><p>Much less work, with a small chance of a miss.</p></div></div>
+            </div>
+
+            <div className="lesson-block">
+              <h3>1.3 · Layers separate long jumps from local moves</h3>
+              <p>Layer 0 contains every vector and detailed local links. Each layer above is sparser, so its links span greater distances. Think of upper layers as highways and the bottom layer as neighborhood streets.</p>
+              <LayersVisual />
+            </div>
+          </section>
+
+          <section id="chapter-search" className="guide-chapter">
+            <header className="chapter-heading"><span>02</span><div><p className="section-kicker">Following a query</p><h2>A search repeatedly asks one question.</h2><p>“Which connected dot takes me closer to the query?” The answer guides the route from the entry point to the final neighborhood.</p></div></header>
+
+            <div id="lesson-6" className="lesson-block">
+              <h3>2.1 · Enter high, then walk downhill</h3>
+              <ol className="explanation-steps">
+                <li><b>Enter.</b><span>Start at the single entry point on the highest layer.</span></li>
+                <li><b>Compare.</b><span>Measure the current dot’s connected neighbors against the query.</span></li>
+                <li><b>Move.</b><span>Follow a closer neighbor; stop when none improves the position.</span></li>
+                <li><b>Descend.</b><span>Use that best dot as the starting point one layer lower. Repeat through layer 0.</span></li>
+              </ol>
+              <SearchVisual />
+            </div>
+
+            <div className="lesson-block">
+              <h3>2.2 · The bottom layer keeps alternatives alive</h3>
+              <p>A purely greedy walk can get trapped at a dot whose immediate neighbors all look worse. On layer 0, HNSW therefore keeps a shortlist of promising candidates and explores more than one route. This shortlist is the search beam.</p>
+              <div className="term-pair"><div><code>candidates</code><p>Promising dots that still need to be checked.</p></div><div><code>best so far</code><p>The closest dots found up to this moment.</p></div></div>
+            </div>
+
+            <aside className="try-panel"><div><span>TRY IT IN THE PLAYGROUND</span><h3>Replay every decision</h3><p>The example is preloaded. Use the arrows beneath the graph to watch the route one step at a time.</p></div><button className="button primary" onClick={onStartFirstSearch}>Start with an example →</button></aside>
+          </section>
+
+          <section id="chapter-quality" className="guide-chapter">
+            <header className="chapter-heading"><span>03</span><div><p className="section-kicker">The central trade-off</p><h2>Spend more work to miss less often.</h2><p>HNSW is approximate. Its main query-time setting controls how broadly it explores before returning an answer.</p></div></header>
+
+            <div className="lesson-block">
+              <h3>3.1 · efSearch widens the search beam</h3>
+              <p>A low <code>efSearch</code> keeps few alternatives: fast, but easier to trap. A higher value keeps more routes alive: more distance calculations, but a better chance of reaching the true nearest vectors.</p>
+              <BeamVisual />
+            </div>
+
+            <div className="lesson-block">
+              <h3>3.2 · k asks for answers; efSearch funds the search</h3>
+              <div className="parameter-relationship"><div><code>k = 5</code><span>Return five neighbors</span></div><span aria-hidden="true">≠</span><div><code>efSearch = 24</code><span>Keep up to 24 promising candidates while looking</span></div></div>
+              <p>Increasing <code>k</code> changes how many results you request. Increasing <code>efSearch</code> changes how hard the algorithm looks for them. If you raise <code>k</code>, the beam must be at least that wide.</p>
+            </div>
+
+            <div className="lesson-block">
+              <h3>3.3 · Recall measures what the shortcut missed</h3>
+              <div className="recall-card"><div><span>TRUE TOP 5</span><div className="result-dots"><i /><i /><i /><i /><i /></div></div><div><span>FOUND BY HNSW</span><div className="result-dots"><i /><i /><i /><i /><i className="miss" /></div></div><strong>recall@5 = 4 / 5 = 80%</strong></div>
+              <p>The playground computes the exact nearest neighbors as a teaching baseline, then compares the HNSW result with them. In a production system, recall is usually estimated on a representative sample because exact scans are expensive.</p>
+            </div>
+          </section>
+
+          <section id="lesson-4" className="guide-chapter">
+            <header className="chapter-heading"><span>04</span><div><p className="section-kicker">Building the index</p><h2>Every new vector finds its own place.</h2><p>Insertion uses the same layered search, then keeps a limited set of connections that make future searches useful.</p></div></header>
+
+            <div className="lesson-block">
+              <h3>4.1 · Choose a level, search, then connect</h3>
+              <p>A random draw chooses the new vector’s highest layer. Starting from the entry point, it searches down to that layer, finds nearby candidates, and connects to a small selection on every layer where it appears.</p>
+              <BuildVisual />
+            </div>
+
+            <div className="lesson-block">
+              <h3>4.2 · M and efConstruction shape future quality</h3>
+              <div className="term-pair"><div><code>M</code><p>The target number of connections a new vector chooses per layer. More links improve reachability but use more memory.</p></div><div><code>efConstruction</code><p>The candidate pool examined before choosing those links. More effort builds a stronger graph more slowly.</p></div></div>
+              <p>These are build-time settings. Changing either one alters the graph itself, so the playground rebuilds the index. <code>efSearch</code>, by contrast, changes only the next query.</p>
+            </div>
+          </section>
+
+          <section id="parameter-guide" className="guide-chapter control-chapter">
+            <header className="chapter-heading"><span>05</span><div><p className="section-kicker">Optional reference</p><h2>Understand every playground control.</h2><p>You can learn the core idea without touching these. Open a control when you want its exact input range, effect, and rebuild behavior.</p></div></header>
+            <div className="control-summary-grid"><div><span>QUERY TIME</span><b>k · efSearch</b><p>Change the next search without rebuilding.</p></div><div><span>BUILD TIME</span><b>M · efConstruction · mL</b><p>Change the graph and trigger a rebuild.</p></div><div><span>DATA & MEANING</span><b>Dataset · metric</b><p>Change the example or what “near” means.</p></div></div>
+            <div className="reference-library">{Object.values(CONTROL_GUIDES).map((guide) => <ControlCard key={guide.id} guide={guide} />)}</div>
+          </section>
+        </div>
+      </div>
+
+      <footer className="guide-footer"><span>You now know the map, the route, and the trade-off.</span><button className="button secondary" onClick={onOpenPlayground}>Open an empty playground →</button></footer>
     </div>
   </main>
 }

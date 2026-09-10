@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CanvasToolbar } from "./components/CanvasToolbar";
 import { Explainer } from "./components/Explainer";
 import { ExplanationPage } from "./components/ExplanationPage";
@@ -12,7 +12,7 @@ import { MetricsPanel } from "./components/panels/MetricsPanel";
 import { NodePanel } from "./components/panels/NodePanel";
 import { ParamsPanel } from "./components/panels/ParamsPanel";
 import { graphStats } from "./hnsw/metrics";
-import { useApp, useDispatch, useViewGraph, type RightTab } from "./state/store";
+import { playgroundEntryActions, useApp, useDispatch, useViewGraph, type PlaygroundEntry, type RightTab } from "./state/store";
 
 const TABS: Array<[RightTab, string, string]> = [
   ["build", "Explore", "Choose dots and run a search"],
@@ -85,26 +85,15 @@ export default function App() {
   const dispatch = useDispatch();
   const graph = useViewGraph();
   const stats = useMemo(() => graphStats(graph), [graph]);
-  const initializedDirectRoute = useRef(false);
   const navigate = useCallback((next: Route) => {
     const path = next === "home" ? "/" : `/${next}`;
     window.history.pushState({}, "", path);
     setRoute(next);
   }, []);
-  const openPlayground = useCallback(() => {
-    if (state.graph.nodes.size === 0) dispatch({ type: "script", ops: [{ t: "preset", id: state.dataset.id, n: state.dataset.n, seed: state.dataset.seed }, { t: "tool", tool: "search" }] });
-    dispatch({ type: "setRightTab", tab: "build" });
-    dispatch({ type: "setTool", tool: "search" });
+  const openPlayground = useCallback((entry: PlaygroundEntry = "empty") => {
+    for (const action of playgroundEntryActions(state, entry)) dispatch(action);
     navigate("playground");
-  }, [dispatch, navigate, state.dataset, state.graph.nodes.size]);
-
-  useEffect(() => {
-    if (initializedDirectRoute.current) return;
-    initializedDirectRoute.current = true;
-    if (route === "playground" && state.graph.nodes.size === 0) {
-      dispatch({ type: "script", ops: [{ t: "preset", id: state.dataset.id, n: state.dataset.n, seed: state.dataset.seed }, { t: "tool", tool: "search" }] });
-    }
-  }, [dispatch, route, state.dataset, state.graph.nodes.size]);
+  }, [dispatch, navigate, state]);
 
   useEffect(() => { const fn = () => setRoute(routeFromLocation()); window.addEventListener("popstate", fn); return () => window.removeEventListener("popstate", fn); }, []);
   useEffect(() => {
@@ -130,7 +119,7 @@ export default function App() {
         {route === "playground" && <div className="stat-strip" aria-label="Graph summary"><span><b>{stats.live}</b> dots</span><span><b>{stats.total ? stats.topLayer + 1 : 0}</b> layers</span></div>}
         <ThemeToggle />
       </header>
-      {route === "home" ? <Home navigate={navigate} onOpenPlayground={openPlayground} /> : route === "learn" ? <ExplanationPage onOpenPlayground={openPlayground} /> : (
+      {route === "home" ? <Home navigate={navigate} onOpenPlayground={() => openPlayground()} /> : route === "learn" ? <ExplanationPage onOpenPlayground={() => openPlayground()} onStartFirstSearch={() => openPlayground("guided")} /> : (
         <main className="playground-layout">
           <section className="workbench" aria-label="Graph visualization and replay"><div className="canvas-stage"><GraphCanvas /><CanvasToolbar /></div><Transport /><Explainer onOpenExplanation={() => navigate("learn")} /></section>
           <aside className="inspector"><div className="inspector-head"><div className="panel-navigation"><div className="tabs" role="tablist" aria-label="Playground panels">{TABS.map(([id, label, title]) => <button key={id} id={`tab-${id}`} role="tab" title={title} aria-selected={activeTab === id} aria-controls="inspector-panel" onClick={() => dispatch({ type: "setRightTab", tab: id })}>{label}</button>)}</div><select className="more-tools" aria-label="More tools" value={TABS.some(([id]) => id === activeTab) ? '' : activeTab} onChange={(e) => dispatch({ type: "setRightTab", tab: e.target.value as RightTab })}><option value="" disabled>More</option><option value="node">Inspect a dot</option><option value="code">Algorithm steps</option><option value="lab">Experiments</option></select></div></div><div id="inspector-panel" className="inspector-panel" role={TABS.some(([id]) => id === activeTab) ? "tabpanel" : "region"} aria-label={TABS.find(([id]) => id === activeTab)?.[1] ?? "More tools"}><Panel /></div></aside>
