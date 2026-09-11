@@ -20,6 +20,7 @@ import { Explainer } from '../Explainer'
 import { OperationNotice } from '../OperationNotice'
 import { ExplanationPage } from '../ExplanationPage'
 import { GraphCanvas } from '../GraphCanvas'
+import { InsertReplayPrompt } from '../InsertReplayPrompt'
 import { Transport } from '../Transport'
 import { BuildPanel } from '../panels/BuildPanel'
 import { CodePanel } from '../panels/CodePanel'
@@ -99,9 +100,25 @@ describe('render smoke', () => {
   })
 
   it('shows concise guidance in the setup and replay surfaces', () => {
-    expect(render(initialState(), <BuildPanel />)).toContain('Run a search')
+    expect(render(initialState(), <BuildPanel />)).toContain('Choose a new target')
     expect(render(initialState(), <Transport />)).toContain('Run a search to begin')
     expect(render(initialState(), <Explainer onOpenExplanation={() => {}} />)).toContain('Learn the basics')
+    const graph = render(initialState(), <GraphCanvas />)
+    expect(graph).toContain('aria-label="Graph text size"')
+    expect(graph).toContain('aria-label="Increase graph text size"')
+    expect(graph).toContain('aria-label="Reset graph text size" title="Reset graph text size" disabled="">100%')
+    expect(render(seededState(), <CanvasToolbar />)).toContain('Clear nodes</button>')
+    expect(render(initialState(), <CanvasToolbar />)).toContain('disabled="" title="The graph is already empty"')
+  })
+
+  it('offers an exact-step replay after showing a finished insert', () => {
+    const inserted = script(initialState(), [{ t: 'insert', at: [500, 320] }, { t: 'seek', to: 'end' }])
+    const html = render(inserted, <InsertReplayPrompt />)
+    expect(inserted.step).toBe(inserted.trace!.steps.length - 1)
+    expect(html).toContain('You’re seeing the finished graph')
+    expect(html).toContain('Watch exact steps')
+    expect(html).toContain('aria-label="Dismiss insert replay tip"')
+    expect(render({ ...inserted, step: 0 }, <InsertReplayPrompt />)).toBe('')
   })
 
   it('collapses replay guidance while keeping its controls available', () => {
@@ -136,26 +153,52 @@ describe('render smoke', () => {
     expect(html).toContain('The search continues with other neighbors and queued dots')
   })
 
-  it('presents the concepts as titled chapters before the optional control reference', () => {
+  it('presents the algorithm as a problem-first sequence before the parameter reference', () => {
     const html = render(initialState(), <ExplanationPage onOpenPlayground={() => {}} onStartFirstSearch={() => {}} />)
-    expect(html).toContain('A visual guide to HNSW')
-    expect(html).toContain('First, turn similarity into a map')
-    expect(html).toContain('A search repeatedly asks one question')
-    expect(html).toContain('Spend more work to miss less often')
-    expect(html).toContain('Every new vector finds its own place')
-    expect(html.indexOf('First, turn similarity into a map')).toBeLessThan(html.indexOf('Optional reference'))
-    expect(html.match(/<figure/g)?.length).toBeGreaterThanOrEqual(4)
+    const headings = [
+      'Find similar items without checking everything',
+      'Connect similar vectors into neighborhoods',
+      'Layers turn a long walk into a few big jumps',
+      'Search from coarse layers to fine ones',
+      'An insert searches first, then makes links',
+      'Delete cheaply, or remove and repair',
+      'Parameter reference',
+    ]
+    for (let i = 1; i < headings.length; i++) expect(html.indexOf(`<h2>${headings[i - 1]}`)).toBeLessThan(html.indexOf(`<h2>${headings[i]}`))
+    expect(html).toContain('Brute force is simple and exact')
+    expect(html.match(/<figure/g)?.length).toBeGreaterThanOrEqual(6)
+    expect(html).toContain('class="neighbor-choice-visual"')
+    expect(html).toContain('Choose two useful directions')
+    expect(html).toContain('Soft delete keeps the tombstoned node and all four spokes')
+    expect(html).toContain('the two green links are selected best-effort repairs')
     const visibleText = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ')
     expect(visibleText).not.toMatch(/\b(?:Params|Code|Metrics) tab\b/)
+  })
+
+  it('defines search notation in plain language before the interactive search example', () => {
+    const html = render(initialState(), <ExplanationPage onOpenPlayground={() => {}} onStartFirstSearch={() => {}} />)
+    expect(html).toContain('Search notation, before the example')
+    expect(html).toContain('href="/learn#control-ef-search"')
+    expect(html).toContain('data-learn-reference="true"')
+    expect(html).toContain('<code>W</code> · best so far')
+    expect(html).toContain('<code>C</code> · to check')
+    expect(html).toContain('W remembers possible answers')
+    expect(html).toContain('does not set the result count')
+    expect(html).toContain('When do we add a node to C, and when do we stop?')
+    expect(html).toContain('put the entry point in both C and W')
+    expect(html).toContain('add it to both C and W when W has an empty slot')
+    expect(html).toContain('If C is empty, or its nearest node is farther from q than W’s farthest node, end this layer')
+    expect(html).toContain('After L0 ends, return the closest')
+    expect(html.indexOf('Search notation, before the example')).toBeLessThan(html.indexOf('id="four-dot-search"'))
+    expect(html.indexOf('id="c-admission-rule"')).toBeLessThan(html.indexOf('id="four-dot-search"'))
   })
 
   it('explains per-layer W capacities and their purpose in Learn and live queues', () => {
     const learn = render(initialState(), <ExplanationPage onOpenPlayground={() => {}} onStartFirstSearch={() => {}} />)
     expect(learn).toContain('id="w-per-layer"')
-    expect(learn).toContain('W on each layer—and why')
-    expect(learn).toContain('Upper layers · 1 slot')
-    expect(learn).toContain('Layer 0 · max(efSearch, k) slots')
-    expect(learn).toContain('Only the best dot is passed down, not the whole bucket')
+    expect(learn).toContain('Upper layers · W has 1 slot')
+    expect(learn).toContain('Layer 0 · W uses the larger of')
+    expect(learn).toContain('Only the best node found is passed down')
 
     const state = script(seededState(), [{ t: 'search', at: [500, 320] }])
     for (const base of [false, true]) {
@@ -182,9 +225,12 @@ describe('render smoke', () => {
     expect(learn).toContain('Input: 2–24')
     expect(learn).toContain('Euclidean (L2)')
     expect(learn).toContain('Two moons')
-    expect(learn).toContain('href="#lesson-4"')
+    expect(learn).toContain('“Pruned” means rejected as a redundant connection')
+    expect(learn).toContain('Example: M = 3')
+    expect(learn).toContain('Off leaves N with two links. On uses the empty third slot for B.')
+    expect(learn).toContain('href="#chapter-insert"')
     expect(learn).toContain('See how efConstruction is used during insertion')
-    expect(learn).toContain('href="#ef-search-explained"')
+    expect(learn).toContain('href="#chapter-search"')
     expect(learn).toContain('See how efSearch controls a query')
     expect(panels).not.toContain('Decrease / off')
     expect(panels).not.toContain('Increase / on')
@@ -194,9 +240,9 @@ describe('render smoke', () => {
   })
 
   it('shows the live vector count in the build panel', () => {
-    expect(render(initialState(), <BuildPanel />)).toContain('aria-label="Vectors value" min="0" max="400" value="0"')
+    expect(render(initialState(), <BuildPanel />)).toContain('aria-label="Vectors value" aria-describedby="count-feedback" min="0" max="400" value="0"')
     const inserted = script(initialState(), [{ t: 'insert', at: [500, 320] }])
-    expect(render(inserted, <BuildPanel />)).toContain('aria-label="Vectors value" min="0" max="400" value="1"')
+    expect(render(inserted, <BuildPanel />)).toContain('aria-label="Vectors value" aria-describedby="count-feedback" min="0" max="400" value="1"')
   })
 
   it('keeps ordinary playground entry empty and seeds only the guided first search', () => {
@@ -206,16 +252,19 @@ describe('render smoke', () => {
     expect(direct.tool).toBe('insert')
 
     const guided = playgroundEntryActions(empty, 'guided').reduce(reducer, empty)
-    expect(guided.graph.nodes.size).toBe(48)
-    expect(guided.dataset).toEqual({ id: 'clusters', n: 48, seed: 7 })
+    expect(guided.graph.nodes.size).toBe(4)
+    expect(guided.trace?.op).toBe('search')
+    expect(guided.step).toBe(0)
+    expect(guided.playing).toBe(false)
+    expect(guided.granularity).toBe('fine')
     expect(guided.tool).toBe('search')
-    expect(guided.rightTab).toBe('build')
+    expect(guided.rightTab).toBe('queues')
   })
 
   it('labels the Learn-page seeded and empty playground paths distinctly', () => {
     const html = render(initialState(), <ExplanationPage onOpenPlayground={() => {}} onStartFirstSearch={() => {}} />)
-    expect(html).toContain('Start with an example')
-    expect(html).toContain('Open an empty playground')
+    expect(html).toContain('Open guided search')
+    expect(html).toContain('Open or resume Playground')
   })
 
   it.each(SCENARIOS)('canvas + transport + explainer render: %s', (_name, state) => {
@@ -281,6 +330,15 @@ describe('render smoke', () => {
     expect(html).toContain('id="node-x"')
     expect(html).toContain('id="node-y"')
     expect(html).toContain('Move node')
+    expect(html).toContain('href="/learn#soft-delete"')
+    expect(html).toContain('href="/learn#hard-delete"')
+    expect(html.indexOf('soft delete')).toBeLessThan(html.indexOf('coordinate-form'))
+  })
+
+  it('labels the node editing canvas tool as Update', () => {
+    const html = render(seededState(), <CanvasToolbar />)
+    expect(html).toContain('>Update</span>')
+    expect(html).not.toContain('>Inspect</span>')
   })
 })
 

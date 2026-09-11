@@ -1,4 +1,4 @@
-import { PITCH_MAX, PITCH_MIN, type Orientation } from './project'
+import { DEFAULT_ORIENTATION, PITCH_MAX, PITCH_MIN, type Orientation } from './project'
 
 /**
  * The view transform sitting between the projection and the screen: a uniform
@@ -15,7 +15,7 @@ export interface Camera extends Orientation {
   ty: number
 }
 
-export const DEFAULT_CAMERA: Camera = { z: 1, tx: 0, ty: 0, yaw: 0, pitch: 0.26 }
+export const DEFAULT_CAMERA: Camera = { z: 1, tx: 0, ty: 0, ...DEFAULT_ORIENTATION }
 export const ZOOM_MIN = 0.5
 export const ZOOM_MAX = 14
 

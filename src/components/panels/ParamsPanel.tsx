@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { DEFAULT_PARAMS } from '../../hnsw/algorithm'
 import { METRIC_LABEL, METRIC_NOTE } from '../../hnsw/metric'
 import type { Metric } from '../../hnsw/types'
@@ -6,8 +7,19 @@ import type { ControlGuideKey } from '../../lessons/controlGuides'
 import { ControlHelp } from './ControlHelp'
 
 function Slider({ id, label, value, min, max, step = 1, hint, guide, format, onChange }: { id: string; label: string; value: number; min: number; max: number; step?: number; hint: string; guide: ControlGuideKey; format?: (v: number) => string; onChange: (v: number) => void }) {
-  const update = (raw: number) => onChange(Math.min(max, Math.max(min, Number.isFinite(raw) ? raw : min)))
-  return <div className="field"><div className="field-head"><label htmlFor={id}>{label}</label><input className="number-control" type="number" aria-label={`${label} value`} min={min} max={max} step={step} value={format ? format(value) : value} onChange={(e) => update(Number(e.target.value))}/></div><input id={id} type="range" min={min} max={max} step={step} value={value} onChange={(e) => update(Number(e.target.value))}/><p className="hint">{hint}</p><ControlHelp guide={guide}/></div>
+  const display = format ? format(value) : String(value)
+  const [draft, setDraft] = useState(display)
+  const [message, setMessage] = useState('')
+  const [editing, setEditing] = useState(false)
+  const commit = () => {
+    if (draft === display) return
+    const raw = Number(draft)
+    const clamped = Math.min(max, Math.max(min, Number.isFinite(raw) ? raw : min))
+    const next = Number((Math.round(clamped / step) * step).toFixed(4))
+    setMessage(draft.trim() === '' || next !== raw ? `Adjusted to ${next}. Allowed range: ${min}–${max}, step ${step}.` : '')
+    setDraft(String(next)); if (next !== value) onChange(next)
+  }
+  return <div className="field"><div className="field-head"><label htmlFor={id}>{label}</label><input className="number-control" type="number" aria-label={`${label} value`} aria-describedby={`${id}-feedback`} min={min} max={max} step={step} value={editing ? draft : display} onFocus={() => { setEditing(true); setDraft(display) }} onChange={(e) => setDraft(e.target.value)} onBlur={() => { commit(); setEditing(false) }} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commit() } }}/></div><input id={id} type="range" min={min} max={max} step={step} value={value} onChange={(e) => { setMessage(''); onChange(Number(e.target.value)) }}/><p className="hint">{hint}</p><p id={`${id}-feedback`} className="hint" role="status">{message}</p><ControlHelp guide={guide}/></div>
 }
 
 export function ParamsPanel() {
@@ -18,10 +30,12 @@ export function ParamsPanel() {
   const reset = () => dispatch({ type: 'setParams', patch: { ...DEFAULT_PARAMS } })
 
   return <fieldset className="pane-scroll panel-fields" disabled={editsLocked(state)}>
-    <div className="panel-intro with-action"><div><h2>Try one small change.</h2><p>Run another search to see the difference.</p></div><button className="button ghost compact" onClick={reset}>Reset</button></div>
+    <div className="panel-intro with-action"><div><h2>Try one small change.</h2><p>Keep the same target and k. Change only search effort, then rerun to compare.</p></div><button className="button ghost compact" onClick={reset}>Reset</button></div>
     <Slider id="param-efs" label="Search effort (efSearch)" value={params.efSearch} min={1} max={200} hint="More possible matches in play. More work, often better answers." guide="efSearch" onChange={(efSearch) => set({ efSearch })}/>
+    <button className="button primary" disabled={!state.lastSearch} onClick={() => dispatch({ type: 'rerunSearch' })}>Rerun this target</button>
+    <p className="hint">{state.lastSearch ? `Target fixed at [${state.lastSearch.query.map(v => v.toFixed(1)).join(', ')}]. Finish the replay, then open Results for the before/after comparison.` : 'Run a search in Explore first, or load the four-dot lesson.'}</p>
     <div className="section-title"><span>Graph structure</span><em>rebuilds</em></div>
-    <Slider id="param-M" label="Connections (M)" value={params.M} min={2} max={24} hint="Routes each new dot chooses. More routes use more memory." guide="M" onChange={(M) => set({ M, Mmax: M, Mmax0: M * 2, mL: 1 / Math.log(Math.max(M, 2)) })}/>
+    <Slider id="param-M" label="Connections (M)" value={params.M} min={2} max={24} hint="Routes each new dot chooses. Changing M also resets the upper degree cap to M, the bottom cap to 2 × M, and mL to 1 / ln(M). This rebuild can change both links and layers." guide="M" onChange={(M) => set({ M, Mmax: M, Mmax0: M * 2, mL: 1 / Math.log(Math.max(M, 2)) })}/>
     <Slider id="efc" label="Build effort (efConstruction)" value={params.efConstruction} min={1} max={200} hint="Possible neighbors considered while adding a dot." guide="efConstruction" onChange={(efConstruction) => set({ efConstruction })}/>
     <details className="advanced-details"><summary>Advanced settings <span>Optional</span></summary><div className="details-body">
     <Slider id="mL" label="Layer multiplier (mL)" value={params.mL} min={0.1} max={2} step={0.01} format={(v) => v.toFixed(2)} hint={`Usual value for M ${params.M}: ${(1 / Math.log(Math.max(params.M, 2))).toFixed(2)}.`} guide="mL" onChange={(mL) => set({ mL })}/>

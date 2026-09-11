@@ -76,7 +76,7 @@ export function savePersistedState(state: AppState): void {
     try {
       window.sessionStorage.setItem(
         STORAGE_KEY,
-        serializeState({ ...state, trace: null, step: 0, playing: false }),
+        serializeState({ ...state, trace: null, lastSearch: undefined, comparison: undefined, step: 0, playing: false }),
       )
     } catch {
       // Storage may be disabled. The app remains fully usable for this page load.

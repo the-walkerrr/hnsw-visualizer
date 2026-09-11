@@ -85,10 +85,18 @@ describe('operations through the reducer', () => {
     expect(after.params.efSearch).toBe(64)
   })
 
+  it('changes graph text size without changing the graph', () => {
+    const state = seededState()
+    const after = reducer(state, { type: 'setGraphLabelScale', scale: 1.5 })
+    expect(after.graphLabelScale).toBe(1.5)
+    expect(after.graph).toBe(state.graph)
+  })
+
   it('clear empties the index without breaking a later search', () => {
     const s = script(initialState(), [{ t: 'clear' }, { t: 'search', at: [100, 100] }])
     expect(s.graph.nodes.size).toBe(0)
-    expect(s.trace!.results).toEqual([])
+    expect(s.trace).toBeNull()
+    expect(s.tool).toBe('insert')
   })
 })
 
@@ -275,5 +283,37 @@ describe('operation isolation', () => {
     expect(moved.step).toBe(moved.trace!.steps.length - 1)
     const replayed = reducer(moved, { type: 'play' })
     expect(reducer(replayed, { type: 'beginNodeMove', id })).toBe(replayed)
+  })
+
+  it('opens the panel that matches the selected canvas tool', () => {
+    const state = { ...seededState(), rightTab: 'metrics' as const }
+    expect(reducer(state, { type: 'setTool', tool: 'select' }).rightTab).toBe('node')
+    expect(reducer(state, { type: 'setTool', tool: 'search' }).rightTab).toBe('build')
+    expect(reducer(state, { type: 'setTool', tool: 'insert' }).rightTab).toBe('metrics')
+  })
+})
+
+
+describe('beginner same-target experiment', () => {
+  it('changes efSearch from one to two while keeping graph, target and result distances fixed', () => {
+    const first = reducer(initialState(), { type: 'startGuided' })
+    expect(first.trace!.results.map(r => first.graph.nodes.get(r.id)!.label)).toEqual(['A'])
+    const finished = reducer(first, { type: 'seek', index: first.trace!.steps.length - 1 })
+    const tuned = reducer(finished, { type: 'setParams', patch: { efSearch: 2 } })
+    const second = reducer(tuned, { type: 'rerunSearch' })
+    expect(second.graph).toBe(first.graph)
+    expect(second.lastSearch!.query).toEqual(first.lastSearch!.query)
+    expect(second.trace!.exact).toEqual(first.trace!.exact)
+    expect(second.trace!.results.map(r => second.graph.nodes.get(r.id)!.label)).toEqual(['T'])
+    expect(second.comparison).toEqual({ before: { ef: 1, checks: 3, found: 0, total: 1 }, after: { ef: 2, checks: 4, found: 1, total: 1 } })
+  })
+
+  it('retains the target after closing a trace but invalidates comparisons when the graph is rebuilt', () => {
+    const first = reducer(initialState(), { type: 'startGuided' })
+    const closed = reducer(first, { type: 'closeTrace' })
+    expect(reducer(closed, { type: 'rerunSearch' }).lastSearch!.query).toEqual(first.lastSearch!.query)
+    const rebuilt = reducer(closed, { type: 'setParams', patch: { M: 2 } })
+    expect(rebuilt.lastSearch).toBeUndefined()
+    expect(rebuilt.comparison).toBeUndefined()
   })
 })

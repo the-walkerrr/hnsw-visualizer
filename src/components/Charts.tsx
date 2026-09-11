@@ -63,9 +63,12 @@ export function LineChart({
   color = 'var(--blue)',
   rule,
   xScale = 'linear',
+  xTitle = 'Setting', yTitle = 'Measurement',
 }: {
   title: string
   note?: string
+  xTitle?: string
+  yTitle?: string
   points: Point[]
   yMax?: number
   yFormat?: (v: number) => string
@@ -102,8 +105,8 @@ export function LineChart({
         <table className="table">
           <thead>
             <tr>
-              <th>x</th>
-              <th>value</th>
+              <th>{xTitle}</th>
+              <th>{yTitle}</th>
             </tr>
           </thead>
           <tbody>
@@ -211,12 +214,15 @@ export function BarChart({
   format = (v: number) => String(Math.round(v)),
   color = 'var(--blue)',
   horizontal = false,
+  labelTitle = 'Category', valueTitle = 'Measurement',
 }: {
   title: string
   note?: string
   bars: Array<{ label: string; value: number; color?: string }>
   format?: (v: number) => string
   color?: string
+  labelTitle?: string
+  valueTitle?: string
   horizontal?: boolean
 }) {
   const [hi, setHi] = useState<number | null>(null)
@@ -234,7 +240,7 @@ export function BarChart({
     const w = 320
     const labelW = 64
     return (
-      <ChartShell title={title} note={note} table={<BarTable bars={bars} format={format} />}>
+      <ChartShell title={title} note={note} table={<BarTable bars={bars} format={format} labelTitle={labelTitle} valueTitle={valueTitle} />}>
         <svg viewBox={`0 0 ${w} ${h}`} onMouseLeave={() => setHi(null)}>
           {bars.map((b, i) => {
             const len = (b.value / max) * (w - labelW - 52)
@@ -267,7 +273,7 @@ export function BarChart({
   const slot = (w - pad.l - pad.r) / bars.length
   const bw = Math.max(Math.min(slot - 4, 26), 3)
   return (
-    <ChartShell title={title} note={note} table={<BarTable bars={bars} format={format} />}>
+    <ChartShell title={title} note={note} table={<BarTable bars={bars} format={format} labelTitle={labelTitle} valueTitle={valueTitle} />}>
       <svg viewBox={`0 0 ${w} ${h}`} onMouseLeave={() => setHi(null)}>
         <g className="grid">
           <line x1={pad.l} y1={h - pad.b} x2={w - pad.r} y2={h - pad.b} />
@@ -321,16 +327,19 @@ export function BarChart({
 function BarTable({
   bars,
   format,
+  labelTitle, valueTitle,
 }: {
   bars: Array<{ label: string; value: number }>
   format: (v: number) => string
+  labelTitle: string
+  valueTitle: string
 }) {
   return (
     <table className="table">
       <thead>
         <tr>
-          <th>bin</th>
-          <th>value</th>
+          <th>{labelTitle}</th>
+          <th>{valueTitle}</th>
         </tr>
       </thead>
       <tbody>

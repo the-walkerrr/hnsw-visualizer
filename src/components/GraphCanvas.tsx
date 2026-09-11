@@ -1,3 +1,4 @@
+import * as AlertDialog from '@radix-ui/react-alert-dialog'
 import {
   useCallback,
   useEffect,
@@ -9,7 +10,7 @@ import {
 import { edgesOnLayer } from '../hnsw/graph'
 import { distance } from '../hnsw/metric'
 import type { Graph, HNode, NodeId, Step, Vec } from '../hnsw/types'
-import { editsLocked, useApp, useDispatch, useShownLayer, useViewGraph } from '../state/store'
+import { GRAPH_LABEL_SCALES, editsLocked, useApp, useDispatch, useShownLayer, useViewGraph, type GraphLabelScale } from '../state/store'
 import {
   DEFAULT_CAMERA,
   ZOOM_MAX,
@@ -44,7 +45,9 @@ export function GraphCanvas() {
   const frameRef = useRef<HTMLDivElement>(null)
   const [hover, setHover] = useState<Hover | null>(null)
   const [drag, setDrag] = useState<{ id: NodeId; at: Vec; layer: number } | null>(null)
+  const [pendingMove, setPendingMove] = useState<{ id: NodeId; to: Vec } | null>(null)
   const [cam, setCam] = useState<Camera>(DEFAULT_CAMERA)
+  const labelScale = state.graphLabelScale
 
   const step = state.trace?.steps[state.step] ?? null
   const { layer: shownLayer, fromTrace: traceLayer } = useShownLayer()
@@ -53,8 +56,8 @@ export function GraphCanvas() {
     () =>
       state.viewMode === 'stack'
         ? stackProjector(topLayer, { yaw: cam.yaw, pitch: cam.pitch })
-        : layerProjector(),
-    [state.viewMode, topLayer, cam.yaw, cam.pitch],
+        : layerProjector(state.guided ? { width: 380, height: 255 } : undefined),
+    [state.viewMode, state.guided, topLayer, cam.yaw, cam.pitch],
   )
   const layers = state.viewMode === 'stack' ? range(topLayer, 0) : [shownLayer]
 
@@ -119,7 +122,7 @@ export function GraphCanvas() {
       if (t && /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)) return
       if (e.key === '+' || e.key === '=') zoomBy(1.25)
       else if (e.key === '-' || e.key === '_') zoomBy(1 / 1.25)
-      else if (e.key === '0') setCam((c) => reframed(c))
+      else if (e.key === '0') setCam((c) => ({ ...reframed(c), yaw: DEFAULT_CAMERA.yaw, pitch: DEFAULT_CAMERA.pitch }))
       else if (e.key === '[') setCam((c) => withYaw(c, c.yaw - Math.PI / 12))
       else if (e.key === ']') setCam((c) => withYaw(c, c.yaw + Math.PI / 12))
       else if (e.key === ',') setCam((c) => withPitch(c, c.pitch - 0.04))
@@ -282,7 +285,7 @@ export function GraphCanvas() {
     if (drag) {
       const original = graph.nodes.get(drag.id)?.vec
       const moved = original ? distance(original, drag.at, 'euclidean') > 4 : false
-      if (moved && e) dispatch({ type: 'moveNode', id: drag.id, to: drag.at })
+      if (moved && e) setPendingMove({ id: drag.id, to: drag.at })
       dispatch({ type: 'cancelNodeMove' })
       setDrag(null)
       gesture.current = null
@@ -296,7 +299,7 @@ export function GraphCanvas() {
     if (!g || g.moved || !e || locked) return
     const spot = dataAt(e)
     if (!spot) return
-    if (state.tool === 'insert') dispatch({ type: 'script', ops: [{ t: 'insert', at: spot.at }] })
+    if (state.tool === 'insert') dispatch({ type: 'script', ops: [{ t: 'insert', at: spot.at }, { t: 'seek', to: 'end' }] })
     else if (state.tool === 'search') dispatch({ type: 'script', ops: [{ t: 'search', at: spot.at }] })
   }
 
@@ -361,7 +364,7 @@ export function GraphCanvas() {
                 <text
                   x={proj.to([0, 0], layer)[0] - 8}
                   y={proj.to([0, 0], layer)[1] - 6}
-                  fontSize={13}
+                  fontSize={13 * labelScale}
                   fontFamily="var(--mono)"
                   fill={active ? 'var(--text-2)' : 'var(--text-3)'}
                   fontWeight={600}
@@ -372,7 +375,7 @@ export function GraphCanvas() {
               {proj.stacked && layer > 0 && <Verticals graph={graph} layer={layer} proj={proj} />}
               <Edges graph={graph} layer={layer} proj={proj} step={step} />
               {step && step.vis.layer === layer && (
-                <StepOverlay graph={graph} layer={layer} proj={proj} step={step} beam={beam} />
+                <StepOverlay graph={graph} layer={layer} proj={proj} step={step} beam={beam} labelScale={labelScale} />
               )}
               <Nodes
                 graph={graph}
@@ -384,11 +387,12 @@ export function GraphCanvas() {
                 labels={graph.nodes.size <= proj.labelLimit}
                 dragging={drag}
                 zoom={cam.z}
+                labelScale={labelScale}
               />
               {step?.vis.query &&
                 step.vis.queryLabel === 'q' &&
                 (!proj.stacked || traceLayer === null || traceLayer === layer) && (
-                  <QueryMark at={step.vis.query} layer={layer} proj={proj} zoom={cam.z} />
+                  <QueryMark at={step.vis.query} layer={layer} proj={proj} zoom={cam.z} labelScale={labelScale} />
                 )}
             </g>
           )
@@ -401,15 +405,17 @@ export function GraphCanvas() {
         cam={cam}
         stacked={proj.stacked}
         onZoom={zoomBy}
-        onReset={() => setCam((c) => ({ ...reframed(c), yaw: 0, pitch: DEFAULT_CAMERA.pitch }))}
+        onReset={() => setCam((c) => ({ ...reframed(c), yaw: DEFAULT_CAMERA.yaw, pitch: DEFAULT_CAMERA.pitch }))}
         onYaw={(d) => setCam((c) => withYaw(c, c.yaw + d))}
         onPitch={(d) => setCam((c) => withPitch(c, c.pitch + d))}
+        labelScale={labelScale}
+        onLabelScale={(scale) => dispatch({ type: 'setGraphLabelScale', scale })}
       />
 
       {!state.trace && graph.nodes.size === 0 && (
         <div className="canvas-overlay bl">
           <div className="legend">
-            <span>The index is empty — click to add vectors from scratch.</span>
+            <span>No dots yet. Select Insert to add one, or open Explore → Change the dots.</span>
           </div>
         </div>
       )}
@@ -417,6 +423,28 @@ export function GraphCanvas() {
       {hoverNode && (
         <NodeTip node={hoverNode} graph={graph} hover={hover!} step={step} metric={state.params.metric} />
       )}
+      <AlertDialog.Root open={pendingMove !== null} onOpenChange={(open) => { if (!open) setPendingMove(null) }}>
+        <AlertDialog.Portal>
+          <AlertDialog.Overlay className="dialog-overlay" />
+          <AlertDialog.Content className="dialog-content">
+            <AlertDialog.Title className="dialog-title">
+              Move node {pendingMove ? graph.nodes.get(pendingMove.id)?.label ?? pendingMove.id : ''}?
+            </AlertDialog.Title>
+            <AlertDialog.Description className="dialog-description">
+              Moving this node to [{pendingMove ? f1(pendingMove.to[0]) : ''}, {pendingMove ? f1(pendingMove.to[1]) : ''}] will update its links using <b>{state.updateMode}</b> mode.
+            </AlertDialog.Description>
+            <div className="dialog-actions">
+              <AlertDialog.Cancel asChild><button className="iconbtn">Cancel</button></AlertDialog.Cancel>
+              <AlertDialog.Action asChild>
+                <button className="iconbtn" onClick={() => {
+                  if (pendingMove) dispatch({ type: 'moveNode', id: pendingMove.id, to: pendingMove.to })
+                  setPendingMove(null)
+                }}>Move node</button>
+              </AlertDialog.Action>
+            </div>
+          </AlertDialog.Content>
+        </AlertDialog.Portal>
+      </AlertDialog.Root>
     </div>
   )
 }
@@ -501,12 +529,14 @@ function StepOverlay({
   proj,
   step,
   beam,
+  labelScale,
 }: {
   graph: Graph
   layer: number
   proj: Projector
   step: Step
   beam: number | null
+  labelScale: GraphLabelScale
 }) {
   const v = step.vis
   const pos = (id: NodeId) => {
@@ -546,7 +576,7 @@ function StepOverlay({
         )
       })}
       {v.blocker !== undefined && v.considering !== undefined && (
-        <BlockerMark a={pos(v.considering)} b={pos(v.blocker)} />
+        <BlockerMark a={pos(v.considering)} b={pos(v.blocker)} labelScale={labelScale} />
       )}
       {v.current !== undefined && v.query && (
         <DistLine a={proj.to(v.query, layer)} b={pos(v.current)} />
@@ -555,7 +585,7 @@ function StepOverlay({
   )
 }
 
-function BlockerMark({ a, b }: { a: [number, number] | null; b: [number, number] | null }) {
+function BlockerMark({ a, b, labelScale }: { a: [number, number] | null; b: [number, number] | null; labelScale: GraphLabelScale }) {
   if (!a || !b) return null
   const mx = (a[0] + b[0]) / 2
   const my = (a[1] + b[1]) / 2
@@ -574,7 +604,7 @@ function BlockerMark({ a, b }: { a: [number, number] | null; b: [number, number]
       <text
         x={mx}
         y={my - 4}
-        fontSize={12}
+        fontSize={12 * labelScale}
         fontWeight={700}
         fill="var(--c-reject)"
         textAnchor="middle"
@@ -621,6 +651,7 @@ function Nodes({
   labels,
   dragging,
   zoom,
+  labelScale,
 }: {
   graph: Graph
   layer: number
@@ -631,6 +662,7 @@ function Nodes({
   labels: boolean
   dragging: { id: NodeId; at: Vec; layer: number } | null
   zoom: number
+  labelScale: GraphLabelScale
 }) {
   const v = step?.vis
   const onLayer = [...graph.nodes.values()].filter((n) => n.level >= layer)
@@ -752,7 +784,7 @@ function Nodes({
                   <text
                     x={radius + 3}
                     y={-radius - 1}
-                    fontSize={proj.stacked ? 13 : 11}
+                    fontSize={(proj.stacked ? 13 : 11) * labelScale}
                     fontFamily="var(--mono)"
                     fill={isCurrent || isResult || isFocus ? 'var(--text-1)' : 'var(--text-2)'}
                     fontWeight={isCurrent || isResult || isFocus || isEntry ? 600 : 400}
@@ -769,7 +801,7 @@ function Nodes({
   )
 }
 
-function QueryMark({ at, layer, proj, zoom }: { at: Vec; layer: number; proj: Projector; zoom: number }) {
+function QueryMark({ at, layer, proj, zoom, labelScale }: { at: Vec; layer: number; proj: Projector; zoom: number; labelScale: GraphLabelScale }) {
   const [x, y] = proj.to(at, layer)
   const s = proj.nodeR * 1.8
   const invZoom = 1 / Math.max(zoom, 0.0001)
@@ -782,7 +814,7 @@ function QueryMark({ at, layer, proj, zoom }: { at: Vec; layer: number; proj: Pr
         <text
           x={s + 3}
           y={s + 3}
-          fontSize={12}
+          fontSize={12 * labelScale}
           fontFamily="var(--mono)"
           fill="var(--c-query)"
           stroke="none"
@@ -887,6 +919,8 @@ function CameraControls({
   onReset,
   onYaw,
   onPitch,
+  labelScale,
+  onLabelScale,
 }: {
   cam: Camera
   stacked: boolean
@@ -894,24 +928,27 @@ function CameraControls({
   onReset: () => void
   onYaw: (delta: number) => void
   onPitch: (delta: number) => void
+  labelScale: GraphLabelScale
+  onLabelScale: (scale: GraphLabelScale) => void
 }) {
   const step = Math.PI / 12
+  const labelIndex = GRAPH_LABEL_SCALES.indexOf(labelScale)
   return (
     <div className="canvas-footer">
       {stacked && (
         <div className="canvas-overlay camera-orientation" title="Shift-drag to orbit · [ ] to spin · , . to tilt">
           <details><summary>Rotate view</summary>
           <div className="segmented" role="group" aria-label="Orientation">
-            <button title="Spin the stack left ( [ )" onClick={() => onYaw(-step)}>
+            <button aria-label="Rotate left" title="Spin the stack left ( [ )" onClick={() => onYaw(-step)}>
               ↺
             </button>
-            <button title="Spin the stack right ( ] )" onClick={() => onYaw(step)}>
+            <button aria-label="Rotate right" title="Spin the stack right ( ] )" onClick={() => onYaw(step)}>
               ↻
             </button>
-            <button title="Tilt towards edge-on ( , )" onClick={() => onPitch(-0.05)}>
+            <button aria-label="Tilt toward edge-on" title="Tilt towards edge-on ( , )" onClick={() => onPitch(-0.05)}>
               ⌄
             </button>
-            <button title="Tilt towards top-down ( . )" onClick={() => onPitch(0.05)}>
+            <button aria-label="Tilt toward top-down" title="Tilt towards top-down ( . )" onClick={() => onPitch(0.05)}>
               ⌃
             </button>
           </div>
@@ -919,18 +956,23 @@ function CameraControls({
         </div>
       )}
       <TraceLegend />
-      <div className="canvas-overlay camera-zoom" title="Scroll to zoom · drag to pan · 0 to reset">
+      <div className="canvas-overlay camera-zoom">
+        <div className="segmented" role="group" aria-label="Graph text size">
+          <button aria-label="Decrease graph text size" title="Decrease graph text size" disabled={labelIndex === 0} onClick={() => onLabelScale(GRAPH_LABEL_SCALES[Math.max(0, labelIndex - 1)])}>A−</button>
+          <button aria-label="Reset graph text size" title="Reset graph text size" disabled={labelScale === 1} onClick={() => onLabelScale(1)}>{Math.round(labelScale * 100)}%</button>
+          <button aria-label="Increase graph text size" title="Increase graph text size" disabled={labelIndex === GRAPH_LABEL_SCALES.length - 1} onClick={() => onLabelScale(GRAPH_LABEL_SCALES[Math.min(GRAPH_LABEL_SCALES.length - 1, labelIndex + 1)])}>A+</button>
+        </div>
         <div className="segmented" role="group" aria-label="Zoom">
-          <button title="Zoom out ( − )" onClick={() => onZoom(1 / 1.3)} disabled={cam.z <= ZOOM_MIN}>
+          <button aria-label="Zoom out" title="Zoom out ( − )" onClick={() => onZoom(1 / 1.3)} disabled={cam.z <= ZOOM_MIN}>
             −
           </button>
-          <button title="Zoom in ( + )" onClick={() => onZoom(1.3)} disabled={cam.z >= ZOOM_MAX}>
+          <button aria-label="Zoom in" title="Zoom in ( + )" onClick={() => onZoom(1.3)} disabled={cam.z >= ZOOM_MAX}>
             +
           </button>
           <button
-            title="Reset the view ( 0 )"
+            aria-label="Reset view" title="Reset the view ( 0 )"
             onClick={onReset}
-            disabled={isFramed(cam) && cam.yaw === 0}
+            disabled={isFramed(cam) && cam.yaw === DEFAULT_CAMERA.yaw && cam.pitch === DEFAULT_CAMERA.pitch}
           >
             {isFramed(cam) ? 'fit' : `${cam.z.toFixed(1)}×`}
           </button>

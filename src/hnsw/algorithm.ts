@@ -179,7 +179,7 @@ class Run {
    * elements found so far. `ef = 1` makes it a plain greedy walk; larger `ef`
    * turns it into a beam search that can climb out of local minima.
    */
-  private searchLayer(q: Vec, entryPoints: NodeId[], ef: number, lc: number, why: string): Cand[] {
+  private searchLayer(q: Vec, entryPoints: NodeId[], ef: number, lc: number, why: string, connectionSearch = false): Cand[] {
     const prevProc = this.proc
     this.proc = 'search-layer'
     this.layersTouched.add(lc)
@@ -246,7 +246,8 @@ class Run {
         const dist = this.dTo(q, e)
         const worst = W.furthest()!
         this.vis.visited = [...visited]
-        if (dist < worst.dist || W.size < ef) {
+        const hadRoom = W.size < ef
+        if (dist < worst.dist || hadRoom) {
           C.push({ id: e, dist })
           W.push({ id: e, dist })
           let evicted: Cand | undefined
@@ -256,8 +257,8 @@ class Run {
           this.emit(
             's13',
             `Keep ${this.nm(e)} (${f(dist)})`,
-            (W.size < ef && !evicted
-              ? `W still has room (${W.size}/${ef}), so ${this.nm(e)} is kept no matter what. `
+            (hadRoom
+              ? `W had a spare slot (${W.size - 1}/${ef} occupied), so ${this.nm(e)} is accepted. `
               : `${f(dist)} beats W's worst entry ${f(worst.dist)}, so ${this.nm(e)} is kept. `) +
               (evicted
                 ? `W was full, so the furthest element ${this.nm(evicted.id)} (${f(evicted.dist)}) was dropped.`
@@ -286,7 +287,9 @@ class Run {
       's15',
       `Layer ${lc} returns ${out.length} element${out.length === 1 ? '' : 's'}`,
       `W = {${this.nms(out.map((c) => c.id))}}. ${this.distCalls} distance computations charged so far in this operation. ` +
-        (lc > 0
+        (connectionSearch
+          ? `These are possible connections, not final query results. Choose useful links next. ${lc > 0 ? "During the connection phase the whole W list starts the next lower layer." : "This is the bottom layer; no further descent is needed."}`
+          : lc > 0
           ? `The nearest of these becomes the entry point one layer down — the long edges up here did the travelling, the short edges below will do the refining.`
           : `On layer 0 this list is the answer (after trimming to k).`),
     )
@@ -542,6 +545,7 @@ class Run {
         p.efConstruction,
         lc,
         `Phase 2 (connect): ${n.label} lives on layer ${lc}, so we need a *pool* of candidates, not just one.`,
+        true,
       )
       this.proc = 'insert'
       const chosen = this.selectNeighbors(

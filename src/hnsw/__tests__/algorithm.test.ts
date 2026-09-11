@@ -303,3 +303,28 @@ describe('connectivity — the property that explains the heuristic', () => {
     expect(build('heuristic', 12).conn.components.length).toBe(1)
   })
 })
+
+describe('decision narration', () => {
+  it('distinguishes insertion connection results from query descent even with one slot', () => {
+    const p = { ...params, efConstruction: 1 }
+    let graph = runInsert(emptyGraph(), p, [100, 100], { level: 1 }).graph
+    graph = runInsert(graph, p, [200, 200], { level: 1 }).graph
+    const inserted = runInsert(graph, p, [150, 150], { level: 1 }).trace
+    const returned = inserted.steps.filter(s => s.line === 's15')
+    expect(returned.length).toBe(2)
+    for (const step of returned) {
+      expect(step.detail).toContain('possible connections, not final query results')
+      expect(step.detail).not.toContain('nearest of these becomes')
+    }
+    const query = runSearch(graph, p, [150, 150], 1).trace
+    expect(query.steps.find(s => s.line === 's15' && s.vis.layer === 1)!.detail).toContain('nearest of these becomes')
+  })
+
+  it('reports a spare slot when a farther candidate fills the last available slot', () => {
+    const { graph } = build(24)
+    const trace = runSearch(graph, { ...params, efSearch: 24 }, [500, 300], 1).trace
+    const accepted = trace.steps.filter(s => s.line === 's13' && s.vis.searchEf === 24)
+    expect(accepted.length).toBeGreaterThan(0)
+    expect(accepted.at(-1)!.detail).toContain('spare slot')
+  })
+})

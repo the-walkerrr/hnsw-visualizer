@@ -2,11 +2,13 @@ import { useMemo } from 'react'
 import { graphStats, recallAt } from '../../hnsw/metrics'
 import { useApp, useViewGraph } from '../../state/store'
 import { BarChart } from '../Charts'
+import { ParameterLink } from '../ParameterLink'
 
 const int = (v: number) => Math.round(v).toLocaleString()
 
 export function MetricsPanel() {
-  const { trace, params } = useApp()
+  const { trace, params, k, comparison, lastSearch } = useApp()
+  const requested = lastSearch?.k ?? k
   const graph = useViewGraph()
   const stats = useMemo(() => graphStats(graph), [graph])
   const recall = trace && trace.exact.length ? recallAt(trace.results, trace.exact) : null
@@ -18,6 +20,8 @@ export function MetricsPanel() {
   return (
     <div className="pane-scroll">
       <div className="panel-intro"><h2>How did the search do?</h2><p>Full search results, compared with checking every dot.</p></div>
+      {comparison && <section className="note" aria-label="Same-target comparison"><h3>Same target, same dots, same <ParameterLink name="k"/></h3><table className="table"><thead><tr><th>Run</th><th><ParameterLink name="efSearch"/></th><th>True matches found</th><th>Checks</th></tr></thead><tbody>{(['before', 'after'] as const).map(name => <tr key={name}><th>{name}</th><td>{comparison[name].ef}</td><td>{comparison[name].found} / {comparison[name].total}</td><td>{comparison[name].checks}</td></tr>)}</tbody></table><p>{comparison.before.found === comparison.after.found ? 'Both runs found the same number of true matches. Extra effort did not improve that count for this target.' : 'The number of true matches changed because the search explored with a different shortlist capacity.'} No graph connections changed.</p></section>}
+      {trace?.op === 'search' && requested > stats.live && <p className="note">Requested {requested} matches; only {stats.live} live {stats.live === 1 ? 'dot is' : 'dots are'} available.</p>}
       {!trace ? (
         <div className="empty">
           Run a search in Explore to see your matches here.
@@ -46,9 +50,9 @@ export function MetricsPanel() {
           {recall !== null && (
             <>
               <div className="result-score"><span>Closest matches found</span><strong>{Math.round(recall * trace.exact.length)} <small>of {trace.exact.length}</small></strong><p>{(recall * 100).toFixed(0)}% recall — the share of the true closest matches found.</p></div>
-              <p className="result-explanation">{speedup !== null ? <>The search made <b>{int(trace.stats.distCalls)}</b> distance checks. Checking every dot takes <b>{int(trace.stats.bruteForceDistCalls)}</b>.</> : 'No distance checks were needed.'} {recall < 1 && <>Try more search effort in Tune (now {params.efSearch}), then search again.</>}</p>
+              <p className="result-explanation">{speedup !== null ? <>The search made <b>{int(trace.stats.distCalls)}</b> distance checks. Checking every dot takes <b>{int(trace.stats.bruteForceDistCalls)}</b>.</> : 'No distance checks were needed.'} {recall < 1 && <>Try a larger <ParameterLink name="efSearch"/> in Tune (now {params.efSearch}), then search again.</>}</p>
               <BarChart
-                title="Work done"
+                title="Work done" labelTitle="Method" valueTitle="Distance checks"
                 note="distance checks · fewer is faster"
                 horizontal
                 bars={[

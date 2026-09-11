@@ -9,7 +9,8 @@ import {
   runSoftDelete,
   runUpdate,
 } from '../hnsw/algorithm'
-import { emptyGraph } from '../hnsw/graph'
+import { EF_GRAPH, EF_QUERY } from '../lessons/efSearchExample'
+import { cloneGraph, emptyGraph } from '../hnsw/graph'
 import { distance } from '../hnsw/metric'
 import { preset, type PresetId } from '../hnsw/presets'
 import type { Graph, NodeId, Params, Trace, Vec } from '../hnsw/types'
@@ -17,7 +18,10 @@ import type { Graph, NodeId, Params, Trace, Vec } from '../hnsw/types'
 export type ViewMode = 'layer' | 'stack'
 export type Tool = 'search' | 'insert' | 'select'
 export type Granularity = 'coarse' | 'fine'
+export type GraphLabelScale = 1 | 1.25 | 1.5
 export type RightTab = 'build' | 'params' | 'code' | 'node' | 'metrics' | 'lab' | 'queues'
+
+export const GRAPH_LABEL_SCALES: readonly GraphLabelScale[] = [1, 1.25, 1.5]
 
 /** Declarative operations. Guide examples and controls both emit these, so the
  *  learn page can put the app into any state without reaching into component internals. */
@@ -38,6 +42,9 @@ export type ScriptOp =
   | { t: 'seek'; to: 'start' | 'end' }
 
 export interface AppState {
+  lastSearch?: { query: Vec; k: number; params: Params; trace: Trace }
+  comparison?: { before: { ef: number; checks: number; found: number; total: number }; after: { ef: number; checks: number; found: number; total: number } }
+  guided?: boolean
   params: Params
   graph: Graph
   trace: Trace | null
@@ -45,6 +52,7 @@ export interface AppState {
   playing: boolean
   speed: number
   granularity: Granularity
+  graphLabelScale: GraphLabelScale
   viewMode: ViewMode
   layer: number
   ghostLayers: boolean
@@ -60,6 +68,8 @@ export interface AppState {
 export type Action =
   | { type: 'script'; ops: ScriptOp[] }
   | { type: 'setParams'; patch: Partial<Params> }
+  | { type: 'startGuided' }
+  | { type: 'rerunSearch' }
   | { type: 'play' }
   | { type: 'pause' }
   | { type: 'tick' }
@@ -67,6 +77,7 @@ export type Action =
   | { type: 'seek'; index: number }
   | { type: 'setSpeed'; speed: number }
   | { type: 'setGranularity'; g: Granularity }
+  | { type: 'setGraphLabelScale'; scale: GraphLabelScale }
   | { type: 'setViewMode'; mode: ViewMode }
   | { type: 'setLayer'; layer: number }
   | { type: 'toggleGhost' }
@@ -84,19 +95,8 @@ export type Action =
 
 export type PlaygroundEntry = 'empty' | 'guided'
 
-const FIRST_SEARCH_EXAMPLE = { id: 'clusters' as const, n: 48, seed: 7 }
-
-export function playgroundEntryActions(state: Pick<AppState, 'graph'>, entry: PlaygroundEntry): Action[] {
-  if (entry === 'empty') return []
-  const actions: Action[] = []
-  if (state.graph.nodes.size === 0) {
-    actions.push({
-      type: 'script',
-      ops: [{ t: 'preset', ...FIRST_SEARCH_EXAMPLE }, { t: 'tool', tool: 'search' }],
-    })
-  }
-  actions.push({ type: 'setRightTab', tab: 'build' }, { type: 'setTool', tool: 'search' })
-  return actions
+export function playgroundEntryActions(_state: Pick<AppState, 'graph'>, entry: PlaygroundEntry): Action[] {
+  return entry === 'guided' ? [{ type: 'startGuided' }] : []
 }
 
 export function initialState(): AppState {
@@ -109,7 +109,8 @@ export function initialState(): AppState {
     step: 0,
     playing: false,
     speed: 1,
-    granularity: 'coarse',
+    granularity: 'fine',
+    graphLabelScale: 1,
     viewMode: 'stack',
     layer: 0,
     ghostLayers: true,
@@ -163,6 +164,9 @@ function withTrace(state: AppState, graph: Graph, trace: Trace): AppState {
     ...state,
     graph,
     trace,
+    lastSearch: trace.op === 'search' ? state.lastSearch : undefined,
+    comparison: undefined,
+    guided: trace.op === 'search' ? state.guided : false,
     step: 0,
     playing: trace.steps.length > 0 && state.playing,
     rightTab: trace.op === 'search' || trace.op === 'insert' ? 'queues' : state.rightTab,
@@ -172,7 +176,7 @@ function withTrace(state: AppState, graph: Graph, trace: Trace): AppState {
 function applyOp(state: AppState, op: ScriptOp): AppState {
   switch (op.t) {
     case 'clear':
-      return { ...state, graph: emptyGraph(), trace: null, step: 0, selected: null }
+      return { ...state, graph: emptyGraph(), trace: null, step: 0, selected: null, tool: 'insert', playing: false, lastSearch: undefined, comparison: undefined, guided: false }
     case 'preset': {
       const dataset = { id: op.id, n: op.n, seed: op.seed ?? state.dataset.seed }
       const vecs = preset(op.id).make(op.n, dataset.seed)
@@ -180,6 +184,8 @@ function applyOp(state: AppState, op: ScriptOp): AppState {
       return {
         ...state,
         dataset,
+        lastSearch: undefined, comparison: undefined, guided: false,
+        tool: op.n === 0 ? 'insert' : state.tool,
         graph: buildIndex(base, state.params, vecs),
         trace: null,
         step: 0,
@@ -226,7 +232,7 @@ function applyOp(state: AppState, op: ScriptOp): AppState {
         selectedLabel === undefined
           ? null
           : ([...graph.nodes.values()].find((n) => n.label === selectedLabel)?.id ?? null)
-      return { ...state, params, graph, selected, trace: null, step: 0 }
+      return { ...state, params, graph, selected, trace: null, step: 0, lastSearch: undefined, comparison: undefined, guided: false }
     }
     case 'insert': {
       const { graph, trace } = runInsert(state.graph, state.params, op.at, {
@@ -236,8 +242,9 @@ function applyOp(state: AppState, op: ScriptOp): AppState {
       return withTrace(state, graph, trace)
     }
     case 'search': {
+      if (!state.graph.nodes.size) return { ...state, tool: 'insert', rightTab: 'build', trace: null, step: 0 }
       const { trace } = runSearch(state.graph, state.params, op.at, state.k)
-      return withTrace(state, state.graph, trace)
+      return { ...withTrace(state, state.graph, trace), guided: state.guided && op.at.every((v, i) => v === EF_QUERY[i]), lastSearch: { query: [...op.at], k: state.k, params: { ...state.params }, trace } }
     }
     case 'deleteNearest': {
       const id = nearestNode(state.graph, op.at, state.params, op.mode === 'soft')
@@ -306,7 +313,7 @@ export function reducer(state: AppState, action: Action): AppState {
   // Guard the state boundary as well as the controls: keyboard shortcuts,
   // pointer releases, and scripted actions must not replace an active replay.
   if (editsLocked(state)) {
-    if (['setParams', 'setTool', 'setK', 'setUpdateMode', 'deleteNode', 'restoreNode', 'beginNodeMove'].includes(action.type)) return state
+    if (['setParams', 'setTool', 'setK', 'setUpdateMode', 'deleteNode', 'restoreNode', 'beginNodeMove', 'rerunSearch'].includes(action.type)) return state
     if (action.type === 'script' && action.ops.some(changesIndexOrOperation)) return state
     if (action.type === 'moveNode' && (replayInProgress(state) || (state.movingNode !== null && state.movingNode !== action.id))) return state
   }
@@ -314,6 +321,24 @@ export function reducer(state: AppState, action: Action): AppState {
     if (['play', 'tick', 'stepBy', 'seek', 'closeTrace', 'setViewMode', 'setLayer', 'script'].includes(action.type)) return state
   }
   switch (action.type) {
+    case 'startGuided': {
+      const fresh = initialState()
+      const graph = cloneGraph(EF_GRAPH)
+      const params = { ...fresh.params, efSearch: 1 }
+      const { trace } = runSearch(graph, params, EF_QUERY, 1)
+      return { ...fresh, graph, params, k: 1, tool: 'search', viewMode: 'layer', rightTab: 'queues', trace, guided: true,
+        lastSearch: { query: [...EF_QUERY], k: 1, params, trace } }
+    }
+    case 'rerunSearch': {
+      const previous = state.lastSearch
+      if (!previous) return state
+      const next = applyOp(state, { t: 'search', at: previous.query })
+      const score = (trace: Trace, ef: number) => ({ ef, checks: trace.stats.distCalls,
+        found: trace.results.filter(r => trace.exact.some(e => e.id === r.id)).length, total: trace.exact.length })
+      return { ...next, comparison: previous.k === state.k ? {
+        before: score(previous.trace, previous.params.efSearch), after: score(next.trace!, state.params.efSearch)
+      } : undefined }
+    }
     case 'beginNodeMove':
       return state.graph.nodes.has(action.id) ? { ...state, movingNode: action.id, selected: action.id } : state
     case 'cancelNodeMove':
@@ -342,6 +367,8 @@ export function reducer(state: AppState, action: Action): AppState {
       return { ...state, speed: action.speed }
     case 'setGranularity':
       return { ...state, granularity: action.g }
+    case 'setGraphLabelScale':
+      return { ...state, graphLabelScale: action.scale }
     case 'setViewMode':
       return { ...state, viewMode: action.mode }
     case 'setLayer':
@@ -350,8 +377,14 @@ export function reducer(state: AppState, action: Action): AppState {
       return { ...state, ghostLayers: !state.ghostLayers }
     case 'select':
       return { ...state, selected: action.id }
-    case 'setTool':
-      return { ...state, tool: action.tool }
+    case 'setTool': {
+      const rightTab = action.tool === 'select'
+        ? 'node'
+        : action.tool === 'search'
+          ? 'build'
+          : state.rightTab
+      return { ...state, tool: action.tool, rightTab }
+    }
     case 'setK':
       return { ...state, k: action.k }
     case 'setUpdateMode':

@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { WORLD } from '../../hnsw/constants'
-import { DEFAULT_ORIENTATION, layerProjector, stackProjector } from '../project'
+import { DEFAULT_ORIENTATION, STACK_PLANE_PADDING, layerProjector, stackProjector } from '../project'
 
 describe('stacked projection', () => {
   const proj = stackProjector(3, DEFAULT_ORIENTATION)
   const layers = [3, 2, 1, 0]
+
+  it('starts with a slight leftward tilt', () => {
+    expect(DEFAULT_ORIENTATION.yaw).toBeCloseTo(-Math.PI / 6)
+    expect(DEFAULT_ORIENTATION.pitch).toBeGreaterThan(0)
+  })
 
   it('round-trips a point on every layer back to the same vector and layer', () => {
     for (const layer of layers) {
@@ -42,8 +47,36 @@ describe('stacked projection', () => {
     for (const l of [1, 2, 3]) expect(bottomOf(l)).toBeLessThan(topOf(l - 1))
   })
 
+  it('keeps visible breathing room between layers and around the stack', () => {
+    const corners: Array<[number, number]> = [
+      [-STACK_PLANE_PADDING, -STACK_PLANE_PADDING],
+      [WORLD.width + STACK_PLANE_PADDING, -STACK_PLANE_PADDING],
+      [WORLD.width + STACK_PLANE_PADDING, WORLD.height + STACK_PLANE_PADDING],
+      [-STACK_PLANE_PADDING, WORLD.height + STACK_PLANE_PADDING],
+    ]
+    const [, viewY, viewWidth, viewHeight] = proj.viewBox.split(' ').map(Number)
+    const viewX = -viewWidth / 2
+    const projected = layers.flatMap((layer) => corners.map((corner) => proj.to(corner, layer)))
+    expect(Math.min(...projected.map(([x]) => x)) - viewX).toBeGreaterThanOrEqual(56)
+    expect(viewX + viewWidth - Math.max(...projected.map(([x]) => x))).toBeGreaterThanOrEqual(56)
+    expect(Math.min(...projected.map(([, y]) => y)) - viewY).toBeCloseTo(56)
+    expect(viewY + viewHeight - Math.max(...projected.map(([, y]) => y))).toBeCloseTo(56)
+
+    for (const layer of [1, 2, 3]) {
+      const lowerEdge = Math.max(...corners.map((corner) => proj.to(corner, layer)[1]))
+      const upperEdge = Math.min(...corners.map((corner) => proj.to(corner, layer - 1)[1]))
+      expect(upperEdge - lowerEdge).toBeCloseTo(40)
+    }
+  })
+
   it('stacks higher layers above lower ones', () => {
     expect(proj.to([500, 320], 2)[1]).toBeLessThan(proj.to([500, 320], 0)[1])
+  })
+
+  it('draws each plane beyond the data boundary so edge nodes have room', () => {
+    const paddedCorner = proj.to([-STACK_PLANE_PADDING, -STACK_PLANE_PADDING], 0)
+    expect(proj.plane(0)).toContain(`M${paddedCorner[0]} ${paddedCorner[1]}`)
+    expect(proj.plane(0)).not.toContain(`M${proj.to([0, 0], 0)[0]} ${proj.to([0, 0], 0)[1]}`)
   })
 
   it('round-trips at any yaw and tilt', () => {
@@ -96,5 +129,11 @@ describe('single-layer projection', () => {
     expect(proj.from([123, 456], [0]).at).toEqual([123, 456])
     expect(proj.from([-50, 9999], [2]).at).toEqual([0, WORLD.height])
     expect(proj.from([10, 10], [2]).layer).toBe(2)
+  })
+
+  it('extends the visible plane beyond the data boundary', () => {
+    const proj = layerProjector()
+    expect(proj.plane(0)).toContain('M-64 -64')
+    expect(proj.viewBox.startsWith('-90 -90 ')).toBe(true)
   })
 })

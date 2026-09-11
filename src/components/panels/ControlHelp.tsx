@@ -1,4 +1,5 @@
 import { CONTROL_GUIDES, type ControlGuideKey } from '../../lessons/controlGuides'
+import { followLearnReference } from '../../learnReferenceNavigation'
 
 export function ControlHelp({ guide: key }: { guide: ControlGuideKey }) {
   const guide = CONTROL_GUIDES[key]
@@ -12,12 +13,7 @@ export function ControlHelp({ guide: key }: { guide: ControlGuideKey }) {
           {guide.inputs.map((input) => <div key={input.label}><dt>{input.label}</dt><dd>{input.explanation}</dd></div>)}
         </dl>
         <p className="control-timing">{guide.when}</p>
-        <a href={href} onClick={(event) => {
-          if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
-          event.preventDefault()
-          window.history.pushState({}, '', href)
-          window.dispatchEvent(new PopStateEvent('popstate'))
-        }}>Read the full explanation in Learn <span aria-hidden="true">→</span></a>
+        <a href={href} data-learn-reference onClick={followLearnReference}>Read the full explanation in Learn <span aria-hidden="true">→</span></a>
       </div>
     </details>
   )

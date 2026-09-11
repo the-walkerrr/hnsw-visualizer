@@ -13,7 +13,7 @@ describe('session persistence', () => {
         { t: 'search', at: [500, 320] },
       ],
     })
-    state = { ...state, rightTab: 'node', viewMode: 'layer', playing: true }
+    state = { ...state, rightTab: 'node', viewMode: 'layer', graphLabelScale: 1.5, playing: true }
 
     const restored = deserializeState(serializeState(state))
 
@@ -23,6 +23,7 @@ describe('session persistence', () => {
     expect(restored!.selected).toBe(state.selected)
     expect(restored!.rightTab).toBe('node')
     expect(restored!.viewMode).toBe('layer')
+    expect(restored!.graphLabelScale).toBe(1.5)
     expect(restored!.graph.nodes).toBeInstanceOf(Map)
     expect(restored!.graph.nodes.size).toBe(12)
     expect(restored!.trace?.steps[0].graph.nodes).toBeInstanceOf(Map)

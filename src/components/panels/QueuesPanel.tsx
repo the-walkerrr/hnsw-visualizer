@@ -2,11 +2,15 @@ import { distance } from '../../hnsw/metric'
 import type { NodeId } from '../../hnsw/types'
 import { useApp, useDispatch } from '../../state/store'
 import { searchQueues } from '../searchQueues'
+import { ParameterLink } from '../ParameterLink'
+import { followLearnReference } from '../../learnReferenceNavigation'
 
 export function QueuesPanel() {
   const state = useApp()
   const dispatch = useDispatch()
   const queues = searchQueues(state.trace, state.step)
+  if (state.graph.nodes.size === 0) return <div className="pane-scroll"><h2>No dots to search</h2><p>Add a dot in Explore before starting a search. There are no replay steps yet.</p><button className="button secondary" onClick={() => dispatch({ type: 'setRightTab', tab: 'build' })}>Open Explore</button></div>
+  if (!queues && state.trace && !state.trace.steps.some(step => step.line === 's2')) return <div className="pane-scroll"><h2>No neighbor search needed</h2><p>This operation has no search lists. Follow the explanation below the graph; the first dot can become the entry point without searching existing neighbors.</p></div>
   if (!queues) return <div className="pane-scroll"><div className="panel-intro"><h2>Inside the search</h2><p>Watch the best-so-far bucket (W) and the to-check queue (C) change with each step.</p></div><div className="empty"><b>{state.trace ? 'Waiting to enter a search layer' : 'No search to inspect yet'}</b><span>{state.trace ? 'Press Next or Play to initialize the lists.' : 'Run a search or insert a dot to see its live lists here.'}</span></div></div>
 
   const { snapshot, snapshotIndex, capacity, events } = queues
@@ -31,9 +35,9 @@ export function QueuesPanel() {
   </li>)}</ol>
 
   return <div className="pane-scroll queues-panel">
-    <div className="panel-intro"><p className="section-kicker">{inactive ? 'Last search snapshot' : returned ? 'Search complete' : `Live · layer ${vis.layer}`}</p><h2>Inside the search</h2><p>{queryOnBase ? 'Bottom layer · effective efSearch' : state.trace?.op === 'search' ? 'Upper layer · greedy search' : 'Neighbor search during insertion or update'}{capacity !== null ? ` = ${capacity}` : ''}.</p></div>
-    {state.trace?.op === 'search' && <p className="queue-explanation">{queryOnBase ? 'W uses max(efSearch, k) slots to keep alternative routes for better accuracy, at the cost of more checks.' : 'One slot keeps navigation fast: upper layers find a promising starting point for the layer below.'} <a href="/learn#w-per-layer">Why these sizes?</a></p>}
-    <p className="queue-explanation">Distances are to {vis.queryLabel === 'q' ? 'the query' : 'the inserted or moved dot'}, nearest first. W has a capacity; C has no separate size limit.</p>
+    <div className="panel-intro"><p className="section-kicker">{inactive ? 'Last search snapshot' : returned ? 'Search complete' : `Live · layer ${vis.layer}`}</p><h2>Inside the search</h2><p>{queryOnBase ? <>Bottom layer · effective <ParameterLink name="efSearch"/></> : state.trace?.op === 'search' ? 'Upper layer · greedy search' : 'Neighbor search during insertion or update'}{capacity !== null ? ` = ${capacity}` : ''}.</p></div>
+    {state.trace?.op === 'search' && <p className="queue-explanation">{queryOnBase ? <>W uses max(<ParameterLink name="efSearch"/>, <ParameterLink name="k"/>) slots to keep alternative routes for better accuracy, at the cost of more checks.</> : 'One slot keeps navigation fast: upper layers find a promising starting point for the layer below.'} <a href="/learn#w-per-layer" data-learn-reference onClick={followLearnReference}>Why these sizes?</a></p>}
+    <p className="queue-explanation">Dot labels are item IDs, not distances. {metric === 'euclidean' && 'The dashed purple circle shows the farthest kept distance; it is not a boundary limiting where search can go. '}Distances are to {vis.queryLabel === 'q' ? 'the query' : 'the inserted or moved dot'}, nearest first. W has a capacity; C has no separate size limit.</p>
     <section className="queue-section" aria-label="Best so far W">
       <header><h3><i className="queue-key w">W</i> Best so far</h3><span className={full ? 'queue-full' : ''}>{vis.dynamic.length} / {capacity ?? '?'}{full ? ' · Full' : ' slots'}</span></header>
       {capacity !== null && <meter min={0} max={capacity} value={vis.dynamic.length} aria-label="W bucket occupancy" />}
@@ -59,6 +63,6 @@ export function QueuesPanel() {
         </button>
       </li>)}</ol> : <p className="queue-caption">No neighbor decisions yet.</p>}
     </section>
-    <a className="control-deep-link" href="/learn#ef-search-explained">How W and C work →</a>
+    <a className="control-deep-link" href="/learn#chapter-search" data-learn-reference onClick={followLearnReference}>How W and C work →</a>
   </div>
 }

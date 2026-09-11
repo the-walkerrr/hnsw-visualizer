@@ -6,6 +6,8 @@ import { preset } from '../../hnsw/presets'
 import type { Graph, Params, Vec } from '../../hnsw/types'
 import { editsLocked, useApp } from '../../state/store'
 import { BarChart, LineChart } from '../Charts'
+import { ParameterLink } from '../ParameterLink'
+import { followLearnReference } from '../../learnReferenceNavigation'
 
 const EFS = [1, 2, 4, 8, 16, 32, 64, 128]
 const MS = [2, 4, 6, 8, 12, 16, 24]
@@ -57,25 +59,23 @@ export function LabPanel() {
 
   return (
     <div className="pane-scroll">
-      <p className="hint" style={{ marginTop: 0 }}>
-        Every experiment here rebuilds real indexes over the {vectors.length} vectors currently on
-        the canvas and runs {QUERY_COUNT} fixed random queries at k = {k}, scoring recall against an
-        exact scan. Nothing is faked or interpolated.
-      </p>
+      <div className="panel-intro"><h2>Compare one setting</h2><p>Start with search effort. Predict whether keeping more possible answers will find more true matches, require more distance checks, or both.</p></div>
+      <p className="hint">Each experiment uses the same {QUERY_COUNT} test targets on your {vectors.length} dots, asking for <ParameterLink name="k"/> = {k} matches. Recall is the share of true nearest matches found; distance checks measure work. <ParameterLink name="efSearch"/> keeps the graph fixed. The other experiments rebuild separate copies; your canvas stays unchanged.</p>
+      {vectors.length < 8 && <p className="note">Add at least 8 dots in Explore → Change the dots to enable these comparisons. For a known miss with only four dots, use <a href="/learn#four-dot-search" data-learn-reference onClick={followLearnReference}>the guided example</a>.</p>}
 
-      <div className="section-title">The recall dial: ef<sub>search</sub></div>
+      <div className="section-title">The recall dial: <ParameterLink name="efSearch"/></div>
       <button
         className="iconbtn primary"
         disabled={editsLocked(state) || busy !== null || vectors.length < 8}
         onClick={() => run('ef', () => setEfRows(efSweep(graph, params, queries, k, EFS)))}
       >
-        {busy === 'ef' ? 'running…' : 'run ef sweep'}
+        {busy === 'ef' ? 'running…' : 'Compare search effort'}
       </button>
       {efRows && (
         <>
           <LineChart
-            title="Recall@k vs efSearch"
-            note="one query set, one graph — only the beam width changes"
+            title="Recall@k vs efSearch" xTitle="efSearch" yTitle="Recall"
+            note="same targets and graph; only shortlist capacity changes"
             points={efRows.map((r) => ({ x: r.ef, y: r.recall }))}
             xScale="ordinal"
             yMax={1}
@@ -83,19 +83,11 @@ export function LabPanel() {
           />
           {efRows[0].recall > 0.9 && (
             <div className="note warn">
-              Recall is already {(efRows[0].recall * 100).toFixed(0)}% at ef = 1, so there is no
-              knee here — and that is worth understanding rather than tuning away.{' '}
-              <b>Two dimensions flatter this algorithm enormously.</b> A greedy walk in 2-D almost
-              always lands on the true nearest neighbour, because a point has few directions to hide
-              in; ef is the dial that saves you in <i>high</i> dimensions, where distances concentrate
-              and a greedy walk goes wrong all the time. On this canvas the honest way to see the
-              curve move is to make the graph worse: drop M to 2 in the Tune tab (≈86% → 91% on
-              clusters), or switch to the two-moons or spiral shape, where the manifold does the
-              work high dimensionality would.
+              The first setting already finds {(efRows[0].recall * 100).toFixed(0)}% of true matches. If the recall line stays flat, extra effort found no additional correct answers for these targets. Compare the distance checks too. This result applies to this example; it does not promise that every query is easy. Try the <a href="/learn#four-dot-search" data-learn-reference onClick={followLearnReference}>four-dot detour</a> for an example where an extra slot helps.
             </div>
           )}
           <LineChart
-            title="Distance computations vs efSearch"
+            title="Distance computations vs efSearch" xTitle="efSearch" yTitle="Distance checks"
             note="lower is better"
             points={efRows.map((r) => ({ x: r.ef, y: r.distCalls }))}
             xScale="ordinal"
@@ -107,21 +99,18 @@ export function LabPanel() {
           />
           {efRows[efRows.length - 1].distCalls > (efRows[0]?.bruteForceDistCalls ?? 0) && (
             <div className="note">
-              Notice where the orange line crosses the dashed one: at high ef this index costs{' '}
-              <b>more</b> than comparing against every vector. Graph indexes only pay off at scale —
-              with {vectors.length} vectors, brute force is the better algorithm.
+              Compare the orange line with the dashed exact-scan baseline. A tested setting used{' '}
+              <b>more</b> distance checks than comparing against every vector:
+              this measured run used more checks than an exact scan over {vectors.length} dots. This measures distance checks, not total running time.
             </div>
           )}
           <p className="hint">
-            Two charts, not one with two axes: recall is a fraction and cost is a count, and
-            plotting them on a shared scale would invent a relationship that is not there. Read them
-            together — recall saturates long before cost does, and the knee is where you want to
-            operate.
+            Read both charts: higher recall means more true matches; lower distance checks means less work. Prefer a setting that gives the accuracy you need without unnecessary checks. When <ParameterLink name="k"/> is greater than <ParameterLink name="efSearch"/>, this demo uses <ParameterLink name="k"/> slots, so the first settings may behave identically.
           </p>
         </>
       )}
 
-      <div className="section-title">Edge budget: M</div>
+      <div className="section-title">Edge budget: <ParameterLink name="M"/></div>
       <button
         className="iconbtn primary"
         disabled={editsLocked(state) || busy !== null || vectors.length < 8}
@@ -151,12 +140,12 @@ export function LabPanel() {
           )
         }
       >
-        {busy === 'm' ? 'building 7 indexes…' : 'run M sweep'}
+        {busy === 'm' ? 'building 7 indexes…' : 'Compare connection settings'}
       </button>
       {mRows && (
         <>
           <LineChart
-            title="Recall@k vs M"
+            title="Recall@k vs M" xTitle="M" yTitle="Recall"
             note="each point is a freshly built index"
             points={mRows.map((r) => ({ x: r.key, y: r.recall }))}
             xScale="ordinal"
@@ -164,7 +153,7 @@ export function LabPanel() {
             yFormat={(v) => `${(v * 100).toFixed(0)}%`}
           />
           <LineChart
-            title="Edges in the graph vs M"
+            title="Edges in the graph vs M" xTitle="M" yTitle="Edges"
             note="memory scales with this, not with recall"
             points={mRows.map((r) => ({ x: r.key, y: r.edges }))}
             xScale="ordinal"
@@ -193,13 +182,15 @@ export function LabPanel() {
             </tbody>
           </table>
           <p className="hint">
-            Recall flattens out well before the edge count does. Past the knee you are paying memory
-            and build time for nothing — which is why M = 16 shows up as a default so often.
+            {mRows.every(row => Math.round(row.recall * 100) === Math.round(mRows[0].recall * 100))
+              ? 'At the displayed precision, every connection setting found the same share of true matches. No accuracy improvement is visible here; compare edge count and work. Whole percentages can hide smaller differences.'
+              : 'Compare the gain in true matches against the number of links and distance checks. More links do not guarantee an improvement for every target.'}
+            {' '}This comparison also resets <ParameterLink name="Mmax"/> to <ParameterLink name="M"/>, <ParameterLink name="Mmax0"/> to 2 × <ParameterLink name="M"/>, and <ParameterLink name="mL"/> to 1 / ln(<ParameterLink name="M"/>), so layer assignments can change.
           </p>
         </>
       )}
 
-      <div className="section-title">Selection rule: heuristic vs simple</div>
+      <div className="section-title"><ParameterLink name="neighborRule" label="Selection rule"/>: heuristic vs simple</div>
       <button
         className="iconbtn primary"
         disabled={editsLocked(state) || busy !== null || vectors.length < 8}
@@ -221,7 +212,7 @@ export function LabPanel() {
       {ruleRows && (
         <>
           <BarChart
-            title="Recall@k by neighbour-selection rule"
+            title="Recall@k by neighbour-selection rule" labelTitle="Selection rule" valueTitle="Recall"
             note={`${dataset.id} dataset · same vectors, same order, same M`}
             horizontal
             format={(v) => `${(v * 100).toFixed(0)}%`}
@@ -232,14 +223,12 @@ export function LabPanel() {
             }))}
           />
           <p className="hint">
-            The gap is widest on clustered data and nearly nil on a uniform cloud — switch the
-            dataset in the Build tab and run it again. The heuristic's whole job is to keep the
-            bridges between clusters, and a uniform cloud has no bridges to keep.
+            The simple rule keeps the nearest candidates. The heuristic rule tries to keep different directions. Compare the measured results here; neither outcome is guaranteed for every dataset. Change the shape in Explore → Change the dots, then rerun.
           </p>
         </>
       )}
 
-      <div className="section-title">Reference defaults</div>
+      <details className="advanced-details"><summary>Advanced reference defaults</summary><div className="section-title">Reference defaults</div>
       <table className="table">
         <thead>
           <tr>
@@ -250,27 +239,27 @@ export function LabPanel() {
         </thead>
         <tbody>
           <tr>
-            <td>M</td>
+            <td><ParameterLink name="M"/></td>
             <td>{params.M}</td>
             <td>16 (12–48)</td>
           </tr>
           <tr>
-            <td>Mmax0</td>
+            <td><ParameterLink name="Mmax0"/></td>
             <td>{params.Mmax0}</td>
             <td>2M</td>
           </tr>
           <tr>
-            <td>efConstruction</td>
+            <td><ParameterLink name="efConstruction"/></td>
             <td>{params.efConstruction}</td>
             <td>100–500</td>
           </tr>
           <tr>
-            <td>efSearch</td>
+            <td><ParameterLink name="efSearch"/></td>
             <td>{params.efSearch}</td>
             <td>tuned per query, 50–400</td>
           </tr>
           <tr>
-            <td>mL</td>
+            <td><ParameterLink name="mL"/></td>
             <td>{params.mL.toFixed(2)}</td>
             <td>1/ln(M)</td>
           </tr>
@@ -279,7 +268,7 @@ export function LabPanel() {
       <p className="hint">
         The defaults on this canvas ({DEFAULT_PARAMS.M}, {DEFAULT_PARAMS.efConstruction}) are
         deliberately tiny so the graph stays legible. Do not read them as recommendations.
-      </p>
+      </p></details>
     </div>
   )
 }

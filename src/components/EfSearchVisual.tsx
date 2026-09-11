@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { edgesOnLayer } from '../hnsw/graph'
 import { distance } from '../hnsw/metric'
 import { EF_GRAPH, EF_QUERY, efSearchExample } from '../lessons/efSearchExample'
+import { ParameterLink } from './ParameterLink'
 
 const runs = [efSearchExample(1), efSearchExample(2)]
 const edges = edgesOnLayer(EF_GRAPH, 0)
@@ -21,7 +22,10 @@ function CandidateList({ ids, name, ef, capacity }: { ids: number[]; name: strin
 }
 
 function SearchRun({ ef, run }: { ef: number; run: ReturnType<typeof efSearchExample> }) {
-  const [index, setIndex] = useState(0)
+  const [index, setIndex] = useState(() => {
+    try { return Math.max(0, Math.min(run.frames.length - 1, Number(sessionStorage.getItem(`hnsw-ef-step-${ef}`)) || 0)) } catch { return 0 }
+  })
+  useEffect(() => { try { sessionStorage.setItem(`hnsw-ef-step-${ef}`, String(index)) } catch { /* Storage is optional. */ } }, [index, ef])
   const step = run.frames[index]
   const previous = run.frames[Math.max(0, index - 1)]
   const done = step.line === 'k6'
@@ -50,9 +54,9 @@ function SearchRun({ ef, run }: { ef: number; run: ReturnType<typeof efSearchExa
   }
 
   return <section className="ef-run" aria-label={`Search with efSearch ${ef}`}>
-    <header><h4>efSearch = {ef}</h4><span>k = 1 · layer 0</span></header>
+    <header><h4><ParameterLink name="efSearch"/> = {ef}</h4><span><ParameterLink name="k"/> = 1 · layer 0</span></header>
     <svg viewBox="0 0 380 255" role="img" aria-labelledby={`ef-title-${ef} ef-desc-${ef}`}>
-      <title id={`ef-title-${ef}`}>Same graph, efSearch {ef}: {title}</title>
+      <title id={`ef-title-${ef}`}>{`Same graph, efSearch ${ef}: ${title}`}</title>
       <desc id={`ef-desc-${ef}`}>Edges S–A, S–B, B–T. Query q is closest to T. Distances to q: S 280, A 100, B 175, T about 44.7. {detail}</desc>
       <g className="visual-edge">{edges.map(([a, b]) => {
         const av = EF_GRAPH.nodes.get(a)!.vec
@@ -74,18 +78,19 @@ function SearchRun({ ef, run }: { ef: number; run: ReturnType<typeof efSearchExa
       })}
       <g className="query-mark"><path d="M313 83l14 14m0-14-14 14" /></g><text className="ef-query-label" x="334" y="75">q</text>
     </svg>
-    <div className="ef-lists"><CandidateList ids={step.vis.dynamic} name="Best so far · W" ef={ef} capacity={ef} /><CandidateList ids={step.vis.candidates} name="To check · C" ef={ef} /></div>
-    <div className="ef-step" aria-live="polite" aria-atomic="true"><b>{title}</b><p>{detail}</p></div>
     <div className="ef-progress"><span>{step.distCalls} distance checks</span><span>Step {index + 1} / {run.frames.length}</span></div>
     <div className="ef-buttons"><button className="button compact" aria-label={`Previous step, efSearch ${ef}`} disabled={index === 0} onClick={() => setIndex(index - 1)}>← Back</button><button className="button compact" onClick={() => setIndex(done ? 0 : run.frames.length - 1)}>{done ? 'Restart' : 'Show result'}</button><button className="button compact primary" aria-label={`Next step, efSearch ${ef}`} disabled={done} onClick={() => setIndex(index + 1)}>Next →</button></div>
+    <div className="ef-lists"><CandidateList ids={step.vis.dynamic} name="Best so far · W" ef={ef} capacity={ef} /><CandidateList ids={step.vis.candidates} name="To check · C" ef={ef} /></div>
+    <div className="ef-step" aria-live="polite" aria-atomic="true"><b>{title}</b><p>{detail}</p></div>
+
   </section>
 }
 
 export function EfSearchVisual() {
   return <figure className="ef-demo">
-    <figcaption><b>One extra slot keeps a useful detour open.</b><p>A fixed, four-dot graph. Both searches start at S, use the same query q, and request one result. Only efSearch changes. Step forward to inspect the decisions.</p></figcaption>
+    <figcaption><b>One extra slot keeps a useful detour open.</b><p>Both runs use the same four songs, graph, query q, and <ParameterLink name="k"/> = 1. Only <ParameterLink name="efSearch"/> changes. Predict first: can a farther dot lead to a better match?</p></figcaption>
     <div className="ef-runs">{runs.map((run, i) => <SearchRun key={i} ef={i + 1} run={run} />)}</div>
     <p className="ef-demo-note">Numbers are straight-line distances to q; smaller is better. All distances are shown for teaching, but “unseen” dots have not been measured by that search yet. Purple rings show dots kept in W. Orange links belong to the dot being expanded. Both lists are shown nearest first. The search can return to an earlier branch; there is no A–B edge.</p>
-    <div className="ef-outcome"><b>What changes in this example?</b><p>With efSearch = 1, the search measures {runs[0].trace.stats.distCalls} dots and returns A. With efSearch = 2, it measures {runs[1].trace.stats.distCalls} dots and returns T, the exact nearest neighbor. The graph and its edges stay identical.</p></div>
+    <div className="ef-outcome"><b>What changes?</b><p>With <ParameterLink name="efSearch"/> = 1, the search measures {runs[0].trace.stats.distCalls} dots and returns A. With <ParameterLink name="efSearch"/> = 2, it measures {runs[1].trace.stats.distCalls} dots and reaches T, the true nearest neighbor. The graph does not change.</p></div>
   </figure>
 }

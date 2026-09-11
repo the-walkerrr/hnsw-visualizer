@@ -73,7 +73,7 @@ export const CONTROL_GUIDES = {
     lower: 'Builds faster, but can miss useful connections and permanently reduce search quality.',
     higher: 'Builds more slowly, but usually creates a better-connected index with better recall.',
     when: 'Build-time setting: changing it rebuilds the graph.',
-    learnMore: { href: '#lesson-4', label: 'See how efConstruction is used during insertion' },
+    learnMore: { href: '#chapter-insert', label: 'See how efConstruction is used during insertion' },
   },
   mL: {
     id: 'control-ml',
@@ -112,7 +112,7 @@ export const CONTROL_GUIDES = {
     lower: 'Searches faster and checks fewer dots, but is more likely to miss a true nearest neighbor.',
     higher: 'Usually improves recall by exploring more alternatives, but increases distance calculations and latency.',
     when: 'Query-time setting: it changes searches immediately and does not rebuild the graph.',
-    learnMore: { href: '#ef-search-explained', label: 'See how efSearch controls a query' },
+    learnMore: { href: '#chapter-search', label: 'See how efSearch controls a query' },
   },
   Mmax: {
     id: 'control-mmax',
@@ -177,14 +177,15 @@ export const CONTROL_GUIDES = {
   keepPrunedConnections: {
     id: 'control-keep-pruned',
     label: 'Keep pruned connections',
-    plain: 'Fills unused edge slots with the closest rejected candidates when the diversity rule keeps too few.',
+    plain: '“Pruned” means rejected as a redundant connection—not deleted from the graph. This switch only affects heuristic neighbor selection.',
     inputs: [
+      { label: 'Example: M = 3', explanation: 'Suppose node N considers A, B, and C. A and B point in nearly the same direction, while C points elsewhere. The heuristic keeps A and C, then prunes B because A already covers that direction. Off leaves N with two links. On uses the empty third slot for B.' },
       { label: 'Off', explanation: 'Keeps only diverse edges, even when that leaves unused edge slots and some dots under-connected.' },
-      { label: 'On', explanation: 'Uses the closest rejected candidates to fill open slots, keeping dots better connected within the edge budget.' },
+      { label: 'On', explanation: 'Uses the closest rejected candidates to fill open slots. It never exceeds M; it only uses link capacity that would otherwise remain empty.' },
     ],
     lower: 'Off preserves only diverse edges, but some dots may become under-connected dead ends.',
     higher: 'On keeps dots better connected, using the available edge budget; this is the safer default.',
-    when: 'Build-time switch: changing it rebuilds the graph.',
+    when: 'Build-time switch: changing it rebuilds the graph. It has no effect when the simple neighbor-selection rule is active.',
   },
 } satisfies Record<string, ControlGuide>
 
