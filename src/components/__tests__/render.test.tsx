@@ -101,7 +101,7 @@ describe('render smoke', () => {
 
   it('shows concise guidance in the setup and replay surfaces', () => {
     expect(render(initialState(), <BuildPanel />)).toContain('Choose a new target')
-    expect(render(initialState(), <Transport />)).toContain('Run a search to begin')
+    expect(render(initialState(), <Transport />)).toContain('Insert a dot to begin')
     expect(render(initialState(), <Explainer onOpenExplanation={() => {}} />)).toContain('Learn the basics')
     const graph = render(initialState(), <GraphCanvas />)
     expect(graph).toContain('aria-label="Graph text size"')
@@ -163,6 +163,7 @@ describe('render smoke', () => {
       'An insert searches first, then makes links',
       'Delete cheaply, or remove and repair',
       'Parameter reference',
+      'Read the algorithm one operation at a time',
     ]
     for (let i = 1; i < headings.length; i++) expect(html.indexOf(`<h2>${headings[i - 1]}`)).toBeLessThan(html.indexOf(`<h2>${headings[i]}`))
     expect(html).toContain('Brute force is simple and exact')
@@ -173,6 +174,25 @@ describe('render smoke', () => {
     expect(html).toContain('the two green links are selected best-effort repairs')
     const visibleText = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ')
     expect(visibleText).not.toMatch(/\b(?:Params|Code|Metrics) tab\b/)
+  })
+
+  it('keeps algorithm explanations in Learn and points the retired playground panel there', () => {
+    const learn = render(initialState(), <ExplanationPage onOpenPlayground={() => {}} onStartFirstSearch={() => {}} />)
+    const retiredPanel = render(initialState(), <CodePanel />)
+    expect(learn).toContain('id="algorithm-steps"')
+    for (const id of ['knn-search', 'search-layer', 'insert', 'select-neighbors', 'delete', 'update']) {
+      expect(learn).toContain(`id="algorithm-${id}"`)
+    }
+    expect(learn).toContain('How to read the listings')
+    expect(learn).not.toContain('class="learn-disclosure algorithm-listing"')
+    expect(learn.indexOf('id="algorithm-insert"')).toBeLessThan(learn.indexOf('id="algorithm-search-layer"'))
+    expect(learn.indexOf('id="algorithm-search-layer"')).toBeLessThan(learn.indexOf('id="algorithm-select-neighbors"'))
+    expect(learn.indexOf('id="algorithm-select-neighbors"')).toBeLessThan(learn.indexOf('id="algorithm-knn-search"'))
+    expect(learn).toContain('href="#algorithm-knn-search"')
+    expect(learn).toContain('href="#algorithm-insert"')
+    expect(learn).toContain('href="#algorithm-delete"')
+    expect(retiredPanel).toContain('href="/learn#algorithm-steps"')
+    expect(retiredPanel).not.toContain('SEARCH-LAYER(q, ep, ef, lc)')
   })
 
   it('defines search notation in plain language before the interactive search example', () => {
@@ -239,10 +259,22 @@ describe('render smoke', () => {
     expect(panels).toContain('Two moons')
   })
 
-  it('shows the live vector count in the build panel', () => {
-    expect(render(initialState(), <BuildPanel />)).toContain('aria-label="Vectors value" aria-describedby="count-feedback" min="0" max="400" value="0"')
+  it('groups search and insertion controls with their actions', () => {
+    const search = render(initialState(), <BuildPanel />)
+    const empty = render(initialState(), <ParamsPanel />)
+    expect(search).toContain('id="k"')
+    expect(search).toContain('id="param-efs"')
+    expect(search).not.toContain('id="preset"')
+    expect(search).not.toContain('id="count"')
+    expect(empty).toContain('id="preset"')
+    expect(empty).toContain('aria-label="Vectors value"')
+    expect(empty).toContain('id="count" type="range" min="0" max="400" step="1" value="0"')
+    expect(empty).toContain('id="param-M"')
+    expect(empty).toContain('id="efc"')
+    expect(empty).not.toContain('id="k"')
+    expect(empty).not.toContain('id="param-efs"')
     const inserted = script(initialState(), [{ t: 'insert', at: [500, 320] }])
-    expect(render(inserted, <BuildPanel />)).toContain('aria-label="Vectors value" aria-describedby="count-feedback" min="0" max="400" value="1"')
+    expect(render(inserted, <ParamsPanel />)).toContain('id="count" type="range" min="0" max="400" step="1" value="1"')
   })
 
   it('keeps ordinary playground entry empty and seeds only the guided first search', () => {
@@ -327,6 +359,10 @@ describe('render smoke', () => {
     const selected = script(seededState(), [{ t: 'selectNearest', at: [232, 172] }])
     const html = render(selected, <NodePanel />)
     expect(html).toContain('id="node-picker"')
+    expect(html).toContain('aria-label="Update strategy"')
+    expect(html).toContain('Reinsert')
+    expect(html).toContain('In place')
+    expect(html).toContain('href="/learn#algorithm-update"')
     expect(html).toContain('id="node-x"')
     expect(html).toContain('id="node-y"')
     expect(html).toContain('Move node')
@@ -337,8 +373,36 @@ describe('render smoke', () => {
 
   it('labels the node editing canvas tool as Update', () => {
     const html = render(seededState(), <CanvasToolbar />)
-    expect(html).toContain('>Update</span>')
+    expect(html).toContain('aria-label="Update"')
+    expect(html).not.toContain('>Update</span>')
     expect(html).not.toContain('>Inspect</span>')
+  })
+
+  it('groups graph display controls behind settings beside fullscreen', () => {
+    const html = render(seededState(), <GraphCanvas onToggleFullscreen={() => {}} />)
+    expect(html).toContain('aria-label="Graph display settings"')
+    expect(html).toContain('class="gear-icon"')
+    expect(html).toContain('class="graph-settings-popover"')
+    expect(html).toContain('aria-label="Enter fullscreen"')
+    expect(html.indexOf('class="legend"')).toBeLessThan(html.indexOf('class="canvas-footer-actions"'))
+  })
+
+  it('shows a tool-specific prompt when replay is clear', () => {
+    const state = seededState()
+    expect(render({ ...state, tool: 'search' }, <Transport />)).toContain('Run a search to begin')
+    expect(render({ ...state, tool: 'insert' }, <Transport />)).toContain('Insert a dot to begin')
+    expect(render({ ...state, tool: 'select' }, <Transport />)).toContain('Update a dot to begin')
+  })
+
+  it('uses compact settings and explanation controls', () => {
+    const state = seededState()
+    const transport = render(state, <Transport />)
+    const explainer = render(state, <Explainer />)
+    expect(transport).toContain('aria-label="Playback settings"')
+    expect(transport).toContain('class="gear-icon"')
+    expect(transport).not.toContain('>Settings</summary>')
+    expect(explainer).toContain('aria-label="Collapse explanation"')
+    expect(explainer).toContain('aria-expanded="true"')
   })
 })
 

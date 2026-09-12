@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { LISTINGS, type Listing } from '../hnsw/pseudocode'
 import { CONTROL_GUIDES, type ControlGuide } from '../lessons/controlGuides'
 import { followLearnReference, LEARN_REFERENCE_EVENT, prepareLearnReturn, readLearnReturnPoint, type LearnReturnPoint } from '../learnReferenceNavigation'
 import { EfSearchVisual } from './EfSearchVisual'
@@ -15,6 +16,24 @@ function ControlCard({ guide }: { guide: ControlGuide }) {
     </div>
   </details>
 }
+
+function AlgorithmListing({ listing }: { listing: Listing }) {
+  return <section id={`algorithm-${listing.id}`} className="algorithm-listing">
+    <header className="algorithm-listing-heading"><code>{listing.title}</code><span>{listing.subtitle}</span></header>
+    <div className="algorithm-listing-content">
+      <div className="code">
+        {listing.lines.map((line) => <span key={line.key} className={`ln${line.indent === 0 ? ' head' : ''}`} title={line.note}>
+          {'  '.repeat(line.indent)}{line.text}
+        </span>)}
+      </div>
+      {listing.lines.some(line => line.note) && <dl className="algorithm-notes">
+        {listing.lines.filter(line => line.note).map(line => <div key={line.key}><dt>{line.key}</dt><dd>{line.note}</dd></div>)}
+      </dl>}
+    </div>
+  </section>
+}
+
+const LEARN_LISTINGS = LISTINGS
 
 function Visual({ title, children }: { title: string; children: ReactNode }) {
   return <figure className="lesson-visual">
@@ -230,7 +249,7 @@ export function ExplanationPage({ onOpenPlayground, onStartFirstSearch }: { onOp
 
       <div className="guide-layout">
         <nav className="guide-toc" aria-label="Learn HNSW contents">
-          <span className="toc-label">Chapter {chapter} of 07 · place saved</span>
+          <span className="toc-label">Chapter {chapter} of 08 · place saved</span>
           <a href="#chapter-problem"><span>01</span>The problem</a>
           <a href="#chapter-connect"><span>02</span>Connect vectors</a>
           <a href="#chapter-layers"><span>03</span>Why layers</a>
@@ -238,6 +257,7 @@ export function ExplanationPage({ onOpenPlayground, onStartFirstSearch }: { onOp
           <a href="#chapter-insert"><span>05</span>Insert</a>
           <a href="#chapter-delete"><span>06</span>Delete</a>
           <a href="#parameter-guide"><span>07</span>Parameters</a>
+          <a href="#algorithm-steps"><span>08</span>Algorithm steps</a>
         </nav>
 
         <div className="guide-content">
@@ -334,6 +354,7 @@ export function ExplanationPage({ onOpenPlayground, onStartFirstSearch }: { onOp
               <div id="four-dot-search"><EfSearchVisual /></div>
               <p>This stopping rule saves work but can miss an unseen shortcut. <b>Recall</b> measures the share of true nearest matches found. Raising <ParameterLink name="efSearch"/> often improves recall by doing more distance checks, but it cannot repair a badly connected graph.</p>
               <KnowledgeCheck question="Does efSearch change how many results are returned?" choices={['Yes', 'No—that is k']} correct={1} explanation="efSearch changes how broadly layer 0 is explored. k sets the result count."/>
+              <a className="algorithm-reference-link" href="#algorithm-knn-search" data-learn-reference onClick={followLearnReference}>Read the search pseudocode →</a>
             </div>
             <aside className="try-panel"><div><span>TRY THE SAME SEARCH</span><h3>Replay every decision</h3><p>Load the fixed four-dot graph with k = 1 and efSearch = 1, then compare it with efSearch = 2.</p></div><button className="button primary desktop-lesson-action" onClick={onStartFirstSearch}>Open guided search →</button><a className="button primary mobile-lesson-action" href="#four-dot-search">Replay inline →</a></aside>
           </section>
@@ -362,6 +383,7 @@ export function ExplanationPage({ onOpenPlayground, onStartFirstSearch }: { onOp
               <BuildVisual />
               <div className="example-card"><span>SMALL EXAMPLE</span><h4>Why not always choose the two closest links?</h4><p>Place new node N at 0 on a number line. P is at 2, R at 3, and L at −4. With <ParameterLink name="M"/> = 2, choose N–P first. R is close, but P already reaches that direction. N–L can be more useful because it opens the other direction. The heuristic trades one very close link for a more navigable graph.</p><NeighborChoiceVisual /></div>
               <p className="chapter-takeaway"><b>Insertion changes future searches:</b> <ParameterLink name="efConstruction"/> and <ParameterLink name="M"/> cost build time or memory now to create better routes later.</p>
+              <a className="algorithm-reference-link" href="#algorithm-insert" data-learn-reference onClick={followLearnReference}>Read the insertion pseudocode →</a>
             </div>
           </section>
 
@@ -380,6 +402,7 @@ export function ExplanationPage({ onOpenPlayground, onStartFirstSearch }: { onOp
               </ol>
               <div className="example-card"><span>PARAMETERS USED</span><p>Delete mode is the only choice specific to deletion. Soft delete has no tuning knobs. Hard repair reuses the <ParameterLink name="neighborRule" label="neighbor selection rule"/> and the <ParameterLink name="Mmax"/> / <ParameterLink name="Mmax0"/> edge caps. Repeated hard repairs are approximate, so periodic rebuilds may still be needed.</p></div>
               <p className="chapter-takeaway"><b>Practical rule:</b> prefer soft delete when fast, safe updates matter; use hard delete when reclaiming memory now is worth repair cost and possible recall loss.</p>
+              <a className="algorithm-reference-link" href="#algorithm-delete" data-learn-reference onClick={followLearnReference}>Read the delete and repair pseudocode →</a>
             </div>
           </section>
 
@@ -389,10 +412,26 @@ export function ExplanationPage({ onOpenPlayground, onStartFirstSearch }: { onOp
             <div className="reference-library">{Object.values(CONTROL_GUIDES).map((guide) => <ControlCard key={guide.id} guide={guide}/>)}</div>
             <p className="ef-source">Algorithm references: <a href="https://arxiv.org/abs/1603.09320">the original HNSW paper</a> and <a href="https://github.com/nmslib/hnswlib/blob/master/ALGO_PARAMS.md">hnswlib’s parameter guide</a>. Deletion is implementation-specific and is not defined by the paper.</p>
           </section>
+
+          <section id="algorithm-steps" className="guide-chapter algorithm-chapter">
+            <header className="chapter-heading"><span>08</span><div><p className="section-kicker">The complete reference</p><h2>Read the algorithm one operation at a time.</h2><p>The earlier chapters explain the ideas with pictures. This final section collects the same operations as compact pseudocode, after the symbols and behavior are familiar.</p></div></header>
+            <div className="lesson-block">
+              <h3>How to read the listings</h3>
+              <dl className="term-grid compact-terms algorithm-terms">
+                <div><dt><code>q</code></dt><dd>The query vector, or the new vector during insertion.</dd></div>
+                <div><dt><code>ep</code></dt><dd>The entry point or starting node for this search.</dd></div>
+                <div><dt><code>lc</code></dt><dd>The current layer number.</dd></div>
+                <div><dt><code>ef</code></dt><dd>The number of best candidates kept while searching a layer.</dd></div>
+              </dl>
+              <p>Read from top to bottom. Algorithms 1–5 appear in order: insertion, one-layer search, neighbor selection, then the complete nearest-neighbor search. Delete and Update follow as implementation-specific operations.</p>
+              <div className="reference-library algorithm-library">{LEARN_LISTINGS.map(listing => <AlgorithmListing key={listing.id} listing={listing}/>)}</div>
+              <p className="algorithm-caveat"><b>Paper boundary:</b> INSERT, SEARCH-LAYER, SELECT-NEIGHBORS, and K-NN-SEARCH are the teaching version of Algorithms 1–5. DELETE and UPDATE show the implementation conventions used by this visualizer because the original paper does not define them.</p>
+            </div>
+          </section>
         </div>
       </div>
 
-      <footer className="guide-footer"><span>You now have the whole path: exact scan → graph → layers → search → insert → delete.</span><button className="button secondary desktop-lesson-action" onClick={onOpenPlayground}>Open or resume Playground →</button><a className="button secondary mobile-lesson-action" href="#four-dot-search">Practice the inline search →</a></footer>
+      <footer className="guide-footer"><span>You now have the whole path: exact scan → graph → layers → search → insert → delete → pseudocode.</span><button className="button secondary desktop-lesson-action" onClick={onOpenPlayground}>Open or resume Playground →</button><a className="button secondary mobile-lesson-action" href="#four-dot-search">Practice the inline search →</a></footer>
     </div>
   </main>
 }

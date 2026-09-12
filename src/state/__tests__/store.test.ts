@@ -165,7 +165,7 @@ describe('lesson scripts', () => {
   })
 
   it('lesson tab and view ops reference real panels', () => {
-    const tabs = new Set(['build', 'params', 'code', 'node', 'metrics', 'lab'])
+    const tabs = new Set(['build', 'params', 'code', 'node', 'metrics', 'lab', 'queues'])
     for (const lesson of LESSONS) {
       for (const step of lesson.steps) {
         const ops = [
@@ -183,7 +183,7 @@ describe('lesson scripts', () => {
 
 describe('lesson isolation', () => {
   it('a lesson that pins parameters is unaffected by earlier fiddling', () => {
-    // Arrive at the hierarchy lesson after cranking M up in the Tune tab.
+    // Arrive at the hierarchy lesson after cranking M up in the Insert tab.
     let s = reducer(seededState(), { type: 'setParams', patch: { M: 24, Mmax: 24, Mmax0: 48, mL: 0.3 } })
     const layersBefore = s.graph.topLayer
     const hierarchyLesson = LESSONS[2].steps[0]
@@ -289,7 +289,21 @@ describe('operation isolation', () => {
     const state = { ...seededState(), rightTab: 'metrics' as const }
     expect(reducer(state, { type: 'setTool', tool: 'select' }).rightTab).toBe('node')
     expect(reducer(state, { type: 'setTool', tool: 'search' }).rightTab).toBe('build')
-    expect(reducer(state, { type: 'setTool', tool: 'insert' }).rightTab).toBe('metrics')
+    expect(reducer(state, { type: 'setTool', tool: 'insert' }).rightTab).toBe('params')
+  })
+
+  it('clears a finished replay whenever a canvas tool is selected', () => {
+    const inserted = script(seededState(), [
+      { t: 'insert', at: [500, 320] },
+      { t: 'seek', to: 'end' },
+    ])
+    for (const tool of ['search', 'insert', 'select'] as const) {
+      const next = reducer(inserted, { type: 'setTool', tool })
+      expect(next.graph).toBe(inserted.graph)
+      expect(next.trace).toBeNull()
+      expect(next.step).toBe(0)
+      expect(next.playing).toBe(false)
+    }
   })
 })
 

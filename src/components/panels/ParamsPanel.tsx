@@ -1,8 +1,12 @@
 import { useState } from 'react'
 import { DEFAULT_PARAMS } from '../../hnsw/algorithm'
+import { WORLD } from '../../hnsw/constants'
+import { liveNodes } from '../../hnsw/graph'
 import { METRIC_LABEL, METRIC_NOTE } from '../../hnsw/metric'
+import { PRESETS, type PresetId } from '../../hnsw/presets'
+import { makeRng } from '../../hnsw/rng'
 import type { Metric } from '../../hnsw/types'
-import { editsLocked, useApp, useDispatch } from '../../state/store'
+import { editsLocked, useApp, useDispatch, useScript } from '../../state/store'
 import type { ControlGuideKey } from '../../lessons/controlGuides'
 import { ControlHelp } from './ControlHelp'
 
@@ -26,16 +30,21 @@ export function ParamsPanel() {
   const state = useApp()
   const { params } = state
   const dispatch = useDispatch()
+  const script = useScript()
   const set = (patch: Partial<typeof params>) => dispatch({ type: 'setParams', patch })
   const reset = () => dispatch({ type: 'setParams', patch: { ...DEFAULT_PARAMS } })
+  const vectorCount = liveNodes(state.graph).length
+  const { dataset } = state
+  const rebuild = (id = dataset.id, n = vectorCount || dataset.n) => script([{ t: 'preset', id, n, seed: dataset.seed }])
+  const randomPoint = () => { const rng = makeRng((Date.now() ^ state.graph.nextSeq) >>> 0); return [40 + rng() * (WORLD.width - 80), 40 + rng() * (WORLD.height - 80)] as const }
 
   return <fieldset className="pane-scroll panel-fields" disabled={editsLocked(state)}>
-    <div className="panel-intro with-action"><div><h2>Try one small change.</h2><p>Keep the same target and k. Change only search effort, then rerun to compare.</p></div><button className="button ghost compact" onClick={reset}>Reset</button></div>
-    <Slider id="param-efs" label="Search effort (efSearch)" value={params.efSearch} min={1} max={200} hint="More possible matches in play. More work, often better answers." guide="efSearch" onChange={(efSearch) => set({ efSearch })}/>
-    <button className="button primary" disabled={!state.lastSearch} onClick={() => dispatch({ type: 'rerunSearch' })}>Rerun this target</button>
-    <p className="hint">{state.lastSearch ? `Target fixed at [${state.lastSearch.query.map(v => v.toFixed(1)).join(', ')}]. Finish the replay, then open Results for the before/after comparison.` : 'Run a search in Explore first, or load the four-dot lesson.'}</p>
-    <div className="section-title"><span>Graph structure</span><em>rebuilds</em></div>
-    <Slider id="param-M" label="Connections (M)" value={params.M} min={2} max={24} hint="Routes each new dot chooses. Changing M also resets the upper degree cap to M, the bottom cap to 2 × M, and mL to 1 / ln(M). This rebuild can change both links and layers." guide="M" onChange={(M) => set({ M, Mmax: M, Mmax0: M * 2, mL: 1 / Math.log(Math.max(M, 2)) })}/>
+    <div className="panel-intro with-action"><div><p className="section-kicker">Insert</p><h2>Build and add dots.</h2><p>Choose the dataset, then control how each new dot finds and keeps links.</p></div><button type="button" className="iconbtn square parameter-reset" aria-label="Reset parameters" title="Reset parameters" onClick={reset}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M15.5 7A6 6 0 1 0 16 11"/><path d="M15.5 3v4h-4"/></svg></button></div>
+    <div className="field"><div className="field-head"><label htmlFor="preset">Shape</label></div><select id="preset" value={dataset.id} onChange={(e) => rebuild(e.target.value as PresetId)}>{PRESETS.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><ControlHelp guide="dataset"/></div>
+    <Slider id="count" label="Vectors" value={vectorCount} min={0} max={400} hint="Use 24–80 while learning so individual routes stay visible. Range: 0–400." guide="vectors" onChange={(n) => rebuild(dataset.id, n)}/>
+    <div className="row dataset-actions"><button className="button secondary compact" onClick={() => script([{ t: 'tool', tool: 'insert' }, { t: 'insert', at: [...randomPoint()] }, { t: 'seek', to: 'end' }])}>Add one dot</button><button className="button ghost compact" disabled={!vectorCount} onClick={() => script([{ t: 'clear' }])}>Clear dots</button></div>
+    <div className="section-title"><span>Connection settings</span><em>rebuilds</em></div>
+    <Slider id="param-M" label="Connections (M)" value={params.M} min={2} max={24} hint={`Each new dot keeps up to ${params.M} chosen neighbors on every layer where it appears. On L0, it may later grow to ${params.M * 2} links as other dots connect back. Fewer useful candidates can mean fewer links. Changing M rebuilds the graph.`} guide="M" onChange={(M) => set({ M, Mmax: M, Mmax0: M * 2, mL: 1 / Math.log(Math.max(M, 2)) })}/>
     <Slider id="efc" label="Build effort (efConstruction)" value={params.efConstruction} min={1} max={200} hint="Possible neighbors considered while adding a dot." guide="efConstruction" onChange={(efConstruction) => set({ efConstruction })}/>
     <details className="advanced-details"><summary>Advanced settings <span>Optional</span></summary><div className="details-body">
     <Slider id="mL" label="Layer multiplier (mL)" value={params.mL} min={0.1} max={2} step={0.01} format={(v) => v.toFixed(2)} hint={`Usual value for M ${params.M}: ${(1 / Math.log(Math.max(params.M, 2))).toFixed(2)}.`} guide="mL" onChange={(mL) => set({ mL })}/>

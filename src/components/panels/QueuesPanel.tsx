@@ -9,7 +9,7 @@ export function QueuesPanel() {
   const state = useApp()
   const dispatch = useDispatch()
   const queues = searchQueues(state.trace, state.step)
-  if (state.graph.nodes.size === 0) return <div className="pane-scroll"><h2>No dots to search</h2><p>Add a dot in Explore before starting a search. There are no replay steps yet.</p><button className="button secondary" onClick={() => dispatch({ type: 'setRightTab', tab: 'build' })}>Open Explore</button></div>
+  if (state.graph.nodes.size === 0) return <div className="pane-scroll"><h2>No dots to search</h2><p>Add a dot in Insert before starting a search. There are no replay steps yet.</p><button className="button secondary" onClick={() => dispatch({ type: 'setTool', tool: 'insert' })}>Open Insert</button></div>
   if (!queues && state.trace && !state.trace.steps.some(step => step.line === 's2')) return <div className="pane-scroll"><h2>No neighbor search needed</h2><p>This operation has no search lists. Follow the explanation below the graph; the first dot can become the entry point without searching existing neighbors.</p></div>
   if (!queues) return <div className="pane-scroll"><div className="panel-intro"><h2>Inside the search</h2><p>Watch the best-so-far bucket (W) and the to-check queue (C) change with each step.</p></div><div className="empty"><b>{state.trace ? 'Waiting to enter a search layer' : 'No search to inspect yet'}</b><span>{state.trace ? 'Press Next or Play to initialize the lists.' : 'Run a search or insert a dot to see its live lists here.'}</span></div></div>
 

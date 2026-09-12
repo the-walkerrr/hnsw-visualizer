@@ -24,7 +24,7 @@ export function MetricsPanel() {
       {trace?.op === 'search' && requested > stats.live && <p className="note">Requested {requested} matches; only {stats.live} live {stats.live === 1 ? 'dot is' : 'dots are'} available.</p>}
       {!trace ? (
         <div className="empty">
-          Run a search in Explore to see your matches here.
+          Run a search in Search to see your matches here.
         </div>
       ) : (
         <>
@@ -50,7 +50,7 @@ export function MetricsPanel() {
           {recall !== null && (
             <>
               <div className="result-score"><span>Closest matches found</span><strong>{Math.round(recall * trace.exact.length)} <small>of {trace.exact.length}</small></strong><p>{(recall * 100).toFixed(0)}% recall — the share of the true closest matches found.</p></div>
-              <p className="result-explanation">{speedup !== null ? <>The search made <b>{int(trace.stats.distCalls)}</b> distance checks. Checking every dot takes <b>{int(trace.stats.bruteForceDistCalls)}</b>.</> : 'No distance checks were needed.'} {recall < 1 && <>Try a larger <ParameterLink name="efSearch"/> in Tune (now {params.efSearch}), then search again.</>}</p>
+              <p className="result-explanation">{speedup !== null ? <>The search made <b>{int(trace.stats.distCalls)}</b> distance checks. Checking every dot takes <b>{int(trace.stats.bruteForceDistCalls)}</b>.</> : 'No distance checks were needed.'} {recall < 1 && <>Try a larger <ParameterLink name="efSearch"/> in Search (now {params.efSearch}), then search again.</>}</p>
               <BarChart
                 title="Work done" labelTitle="Method" valueTitle="Distance checks"
                 note="distance checks · fewer is faster"

@@ -53,9 +53,9 @@ export const CONTROL_GUIDES = {
   M: {
     id: 'control-m',
     label: 'Connections (M)',
-    plain: 'How many nearby dots a new dot tries to connect to on each layer.',
+    plain: 'How many neighbors a new dot tries to keep on every layer where it appears.',
     inputs: [
-      { label: 'Input: 2–24', explanation: 'Enter a whole number for the target neighbors chosen per layer.' },
+      { label: 'Input: 2–24', explanation: 'Enter a whole number for the target neighbors chosen per layer. M = 5 means up to five chosen neighbors on L1, L2, and every other layer containing the new dot—not exactly five when fewer useful candidates exist.' },
       { label: 'What the value means', explanation: 'Values near 2 create a sparse, fast, memory-light graph. Values near 24 create more routes and usually improve recall, with more build and search work.' },
     ],
     lower: 'Fewer edges use less memory and build faster, but the graph is easier to get stuck in.',

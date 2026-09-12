@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CanvasToolbar } from "./components/CanvasToolbar";
 import { Explainer } from "./components/Explainer";
 import { ExplanationPage } from "./components/ExplanationPage";
@@ -16,14 +16,15 @@ import { OperationNotice } from "./components/OperationNotice";
 import { ParameterLink } from "./components/ParameterLink";
 import { restorePendingLearnReturn } from "./learnReferenceNavigation";
 import { ParamsPanel } from "./components/panels/ParamsPanel";
-import { graphStats } from "./hnsw/metrics";
-import { playgroundEntryActions, useApp, useDispatch, useViewGraph, type PlaygroundEntry, type RightTab } from "./state/store";
+import { playgroundEntryActions, useApp, useDispatch, type PlaygroundEntry, type RightTab } from "./state/store";
 
 const TABS: Array<[RightTab, string, string]> = [
-  ["build", "Explore", "Choose dots and run a search"],
-  ["queues", "Queues", "Watch W, C, and dropped candidates"],
-  ["params", "Tune", "Change graph and query parameters"],
+  ["build", "Search", "Choose a target and tune query-time parameters"],
+  ["params", "Insert", "Build the dataset and tune insertion"],
+  ["node", "Update", "Inspect, move, or delete a dot"],
   ["metrics", "Results", "Compare cost, recall, and graph structure"],
+  ["queues", "Live queues", "Watch W, C, and dropped candidates"],
+  ["lab", "Experiments", "Compare parameter effects across repeated searches"],
 ];
 
 const PANELS: Record<RightTab, () => React.JSX.Element> = {
@@ -87,10 +88,16 @@ function Home({ navigate, onOpenPlayground }: { navigate: (route: Route) => void
 
 export default function App() {
   const [route, setRoute] = useState<Route>(routeFromLocation);
+  const [panelCollapsed, setPanelCollapsed] = useState(false);
+  const [explainerCollapsed, setExplainerCollapsed] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [tabScroll, setTabScroll] = useState(0);
+  const [tabScrollMax, setTabScrollMax] = useState(0);
+  const playgroundRef = useRef<HTMLElement>(null);
+  const panelTabsRef = useRef<HTMLDivElement>(null);
+  const panelBeforeFullscreen = useRef(false);
   const state = useApp();
   const dispatch = useDispatch();
-  const graph = useViewGraph();
-  const stats = useMemo(() => graphStats(graph), [graph]);
   const navigate = useCallback((next: Route) => {
     const path = next === "home" ? "/" : `/${next}`;
     window.history.pushState({}, "", path);
@@ -100,6 +107,27 @@ export default function App() {
     for (const action of playgroundEntryActions(state, entry)) dispatch(action);
     navigate("playground");
   }, [dispatch, navigate, state]);
+  const toggleFullscreen = useCallback(async () => {
+    if (document.fullscreenElement) {
+      await document.exitFullscreen();
+      return;
+    }
+    const playground = playgroundRef.current;
+    if (!playground) return;
+    panelBeforeFullscreen.current = panelCollapsed;
+    setPanelCollapsed(true);
+    try {
+      await playground.requestFullscreen();
+    } catch {
+      setPanelCollapsed(panelBeforeFullscreen.current);
+    }
+  }, [panelCollapsed]);
+  const syncTabScroll = useCallback(() => {
+    const tabs = panelTabsRef.current;
+    if (!tabs) return;
+    setTabScroll(tabs.scrollLeft);
+    setTabScrollMax(Math.max(0, tabs.scrollWidth - tabs.clientWidth));
+  }, []);
 
   useEffect(() => {
     const onPopState = () => { setRoute(routeFromLocation()); restorePendingLearnReturn(); };
@@ -118,8 +146,35 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey);
   }, [dispatch, route, state.playing]);
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      const active = document.fullscreenElement === playgroundRef.current;
+      setIsFullscreen(active);
+      if (active) setExplainerCollapsed(true);
+      if (!document.fullscreenElement) setPanelCollapsed(panelBeforeFullscreen.current);
+    };
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
+  }, []);
+  useEffect(() => {
+    const tabs = panelTabsRef.current;
+    if (!tabs) return;
+    syncTabScroll();
+    tabs.addEventListener('scroll', syncTabScroll, { passive: true });
+    const observer = new ResizeObserver(syncTabScroll);
+    observer.observe(tabs);
+    return () => {
+      tabs.removeEventListener('scroll', syncTabScroll);
+      observer.disconnect();
+    };
+  }, [panelCollapsed, route, syncTabScroll]);
 
   const activeTab = state.rightTab;
+  useEffect(() => {
+    const selectedTab = panelTabsRef.current?.querySelector<HTMLElement>('[aria-selected="true"]');
+    selectedTab?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    requestAnimationFrame(syncTabScroll);
+  }, [activeTab, panelCollapsed, route, syncTabScroll]);
   const Panel = PANELS[activeTab];
   const finishedInsert = state.trace?.op === 'insert' && state.step === state.trace.steps.length - 1;
   return (
@@ -128,13 +183,20 @@ export default function App() {
         <a className="brand" href="/" aria-label="HNSW Explorer home" onClick={(e) => { e.preventDefault(); navigate("home"); }}><Mark /><span>HNSW</span><span className="brand-muted">Explorer</span></a>
         <nav className="page-nav" aria-label="Main navigation"><a href="/learn" aria-current={route === "learn" ? "page" : undefined} onClick={(e) => { e.preventDefault(); navigate("learn"); }}>Learn</a><a href="/playground" aria-current={route === "playground" ? "page" : undefined} onClick={(e) => { e.preventDefault(); openPlayground(); }}>Playground</a></nav>
         <div className="spacer" />
-        {route === "playground" && <div className="stat-strip" aria-label="Graph summary"><span><b>{stats.live}</b> dots</span><span><b>{stats.total ? stats.topLayer + 1 : 0}</b> layers</span></div>}
         <ThemeToggle />
       </header>
       {route === "home" ? <Home navigate={navigate} onOpenPlayground={() => openPlayground()} /> : route === "learn" ? <ExplanationPage onOpenPlayground={() => openPlayground()} onStartFirstSearch={() => openPlayground("guided")} /> : (
-        <main className="playground-layout">
-          <section className="workbench" aria-label="Graph visualization and replay"><div className="canvas-stage"><GraphCanvas /><CanvasToolbar />{finishedInsert && <InsertReplayPrompt />}</div><Transport /><Explainer onOpenExplanation={() => navigate("learn")} /></section>
-          <aside className="inspector"><div className="inspector-head"><div className="panel-navigation"><div className="tabs" role="tablist" aria-label="Playground panels">{TABS.map(([id, label, title]) => <button key={id} id={`tab-${id}`} role="tab" title={title} aria-selected={activeTab === id} aria-controls="inspector-panel" onClick={() => dispatch({ type: "setRightTab", tab: id })}>{label}</button>)}</div><select className="more-tools" aria-label="More tools" value={TABS.some(([id]) => id === activeTab) ? '' : activeTab} onChange={(e) => dispatch({ type: "setRightTab", tab: e.target.value as RightTab })}><option value="" disabled>More</option><option value="node">Inspect a dot</option><option value="code">Algorithm steps</option><option value="lab">Experiments</option></select></div></div><div id="inspector-panel" className="inspector-panel" role={TABS.some(([id]) => id === activeTab) ? "tabpanel" : "region"} aria-label={TABS.find(([id]) => id === activeTab)?.[1] ?? "More tools"}><OperationNotice /><Panel /></div></aside>
+        <main ref={playgroundRef} className={`playground-layout${panelCollapsed ? " panel-collapsed" : ""}${isFullscreen ? " is-fullscreen" : ""}`}>
+          <section className="workbench" aria-label="Graph visualization and replay"><div className="canvas-stage"><GraphCanvas isFullscreen={isFullscreen} onToggleFullscreen={toggleFullscreen} /><CanvasToolbar />{finishedInsert && <InsertReplayPrompt />}</div><Transport /><Explainer collapsed={explainerCollapsed} onCollapsedChange={setExplainerCollapsed} onOpenExplanation={() => navigate("learn")} /></section>
+          <aside className={`inspector${panelCollapsed ? " collapsed" : ""}`}>
+            <div className="inspector-head">
+              <button className="panel-collapse-toggle" aria-label={panelCollapsed ? "Expand side panel" : "Collapse side panel"} aria-expanded={!panelCollapsed} aria-controls="inspector-panel" title={panelCollapsed ? "Expand panel" : "Collapse panel"} onClick={() => setPanelCollapsed((collapsed) => !collapsed)}>
+                <svg viewBox="0 0 20 20" aria-hidden="true"><path d={panelCollapsed ? "m12 5-5 5 5 5" : "m8 5 5 5-5 5"}/></svg>
+              </button>
+              {!panelCollapsed && <div className="panel-navigation"><div className="tabs-scroll"><div ref={panelTabsRef} className="tabs" role="tablist" aria-label="Playground panels">{TABS.map(([id, label, title]) => <button key={id} id={`tab-${id}`} role="tab" title={title} aria-selected={activeTab === id} aria-controls="inspector-panel" onClick={() => dispatch({ type: "setRightTab", tab: id })}>{label}</button>)}</div><input className="tabs-scrollbar" type="range" min={0} max={Math.max(tabScrollMax, 1)} value={tabScrollMax ? Math.min(tabScroll, tabScrollMax) : 0} disabled={!tabScrollMax} aria-label="Scroll playground sections" onChange={(event) => { const left = Number(event.target.value); if (panelTabsRef.current) panelTabsRef.current.scrollLeft = left; setTabScroll(left); }} /></div></div>}
+            </div>
+            {!panelCollapsed && <div id="inspector-panel" className="inspector-panel" role={TABS.some(([id]) => id === activeTab) ? "tabpanel" : "region"} aria-label={TABS.find(([id]) => id === activeTab)?.[1] ?? "More tools"}><OperationNotice /><Panel /></div>}
+          </aside>
         </main>
       )}
       <div className="mobile-gate" role="alert"><div><Mark /><p className="eyebrow">Desktop instrument</p><h2>The graph needs more room.</h2><p>Open the interactive playground on a desktop or laptop with a viewport at least 900 px wide.</p><a className="button secondary" href="/learn" onClick={(e) => { e.preventDefault(); navigate("learn"); }}>Read the mobile-friendly guide</a></div></div>

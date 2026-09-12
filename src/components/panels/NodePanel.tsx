@@ -13,6 +13,7 @@ export function NodePanel() {
   const node = state.selected !== null ? graph.nodes.get(state.selected) ?? committedNode : undefined
   const nodes = [...state.graph.nodes.values()].sort((a, b) => a.seq - b.seq)
   const [pendingMove, setPendingMove] = useState<[number, number] | null>(null)
+  const updateLocked = editsLocked(state)
 
   const picker = (
     <div className="field node-picker">
@@ -36,10 +37,23 @@ export function NodePanel() {
     </div>
   )
 
+  const updateStrategy = (
+    <div className="field update-strategy">
+      <span className="field-label">Update strategy</span>
+      <div className="segmented full" role="group" aria-label="Update strategy">
+        <button disabled={updateLocked} aria-pressed={state.updateMode === 'reinsert'} onClick={() => dispatch({ type: 'setUpdateMode', mode: 'reinsert' })}>Reinsert</button>
+        <button disabled={updateLocked} aria-pressed={state.updateMode === 'in-place'} onClick={() => dispatch({ type: 'setUpdateMode', mode: 'in-place' })}>In place</button>
+      </div>
+      <p className="hint">{state.updateMode === 'reinsert' ? 'Rebuilds this dot’s links and redraws its random highest layer. Safer, with more work.' : 'Replaces the vector and repairs nearby links. Faster, but repeated updates can weaken the graph.'}</p>
+      <a className="control-deep-link" href="/learn#algorithm-update" data-learn-reference onClick={followLearnReference}>How updates work <span aria-hidden="true">↗</span></a>
+    </div>
+  )
+
   if (!node) {
     return (
       <div className="pane-scroll">
-        <div className="panel-intro"><h2>Inspect a node</h2><p>Select a node here or choose <b>Update</b> above the graph and select it on the canvas.</p></div>
+        <div className="panel-intro"><p className="section-kicker">Update</p><h2>Change a dot.</h2><p>Choose how updates behave, then select a dot to move, restore, or delete.</p></div>
+        {updateStrategy}
         {picker}
         <div className="empty"><span className="empty-glyph">◎</span><b>No node selected</b><span>Node level, neighbors, distance, and update actions will appear here.</span></div>
       </div>
@@ -49,6 +63,8 @@ export function NodePanel() {
   const q = state.trace?.steps[state.step]?.vis.query
   return (
     <div className="pane-scroll">
+      <div className="panel-intro"><p className="section-kicker">Update</p><h2>Change a dot.</h2><p>Choose a dot and an update strategy before moving or deleting it.</p></div>
+      {updateStrategy}
       {picker}
       <div className="section-title">Node {node.label}</div>
       <dl className="kv">

@@ -30,7 +30,7 @@ const FAR_CORNER: [number, number] = [905, 575]
 const clusters = (n: number): ScriptOp => ({ t: 'preset', id: 'clusters', n, seed: 7 })
 
 /** Lessons that describe a specific picture pin the parameters that produce it,
- *  so arriving from the Tune tab with M = 24 cannot contradict the words. */
+ *  so arriving from the Insert tab with M = 24 cannot contradict the words. */
 const TEACHING_PARAMS: ScriptOp = {
   t: 'params',
   patch: {
@@ -255,7 +255,7 @@ export const LESSONS: Lesson[] = [
           {
             t: 'note',
             tone: 'warn',
-            text: 'Turn `mL` up in the Tune tab and the index grows extra, nearly-empty layers: every search then pays for hops through layers that contain almost nothing. Turn it down to 0 and you are back to a single flat graph.',
+            text: 'Turn `mL` up in the Insert tab and the index grows extra, nearly-empty layers: every search then pays for hops through layers that contain almost nothing. Turn it down to 0 and you are back to a single flat graph.',
           },
         ],
       },
@@ -272,7 +272,7 @@ export const LESSONS: Lesson[] = [
           clusters(48),
           { t: 'params', patch: { efSearch: 8, efConstruction: 12, neighborRule: 'heuristic' } },
           { t: 'view', mode: 'stack' },
-          { t: 'tab', tab: 'code' },
+          { t: 'tab', tab: 'queues' },
           { t: 'insert', at: EDGE_OF_CLUSTER },
           { t: 'seek', to: 'start' },
         ],
@@ -283,7 +283,7 @@ export const LESSONS: Lesson[] = [
           },
           {
             t: 'try',
-            text: 'Step forward through the trace and watch the **Trace** tab: the highlighted line walks down `INSERT` and into `SEARCH-LAYER`.',
+            text: 'Step forward through the replay and watch the live queues change. The matching `INSERT` and `SEARCH-LAYER` pseudocode is in the **Algorithm steps** section of Learn.',
             ops: [{ t: 'seek', to: 'start' }],
           },
           {
@@ -715,7 +715,7 @@ export const LESSONS: Lesson[] = [
             pairs: [
               [
                 'efSearch',
-                'Query-time recall dial. Per query, no rebuild, immediate effect. Tune this first, always. 50–400 typical.',
+                'Query-time recall dial. Per query, no rebuild, immediate effect. Adjust this first, always. 50–400 typical.',
               ],
               [
                 'efConstruction',
@@ -767,7 +767,7 @@ export const LESSONS: Lesson[] = [
         blocks: [
           {
             t: 'p',
-            text: 'The paper is short and readable: Yu. A. Malkov, D. A. Yashunin, *"Efficient and robust approximate nearest neighbor search using Hierarchical Navigable Small World graphs"* (arXiv:1603.09320, 2016). The pseudocode in the Trace tab is Algorithms 1–5 from it, verbatim.',
+            text: 'The paper is short and readable: Yu. A. Malkov, D. A. Yashunin, *"Efficient and robust approximate nearest neighbor search using Hierarchical Navigable Small World graphs"* (arXiv:1603.09320, 2016). The compact pseudocode now lives in the Algorithm steps section of Learn.',
           },
           {
             t: 'ul',

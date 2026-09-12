@@ -1,11 +1,16 @@
 import { useApp, useDispatch } from '../state/store'
 
 export function Transport() {
-  const { trace, step, playing, granularity, speed, movingNode } = useApp()
+  const { trace, step, playing, granularity, speed, movingNode, tool } = useApp()
   const dispatch = useDispatch()
   const total = trace?.steps.length ?? 0
   const atEnd = total === 0 || step >= total - 1
-  const label = trace?.title ?? 'Run a search to begin'
+  const idleLabel = tool === 'insert'
+    ? 'Insert a dot to begin'
+    : tool === 'select'
+      ? 'Update a dot to begin'
+      : 'Run a search to begin'
+  const label = trace?.title ?? idleLabel
 
   return <div className="transport" aria-label="Trace playback">
     <fieldset className="transport-controls panel-fields" disabled={movingNode !== null}>
@@ -18,7 +23,7 @@ export function Transport() {
       <input className="scrub" type="range" min={0} max={Math.max(total - 1, 0)} value={step} disabled={!trace || movingNode !== null} aria-label="Trace step" onChange={(e) => dispatch({ type: 'seek', index: Number(e.target.value) })}/>
     </div>
     <div className="transport-options">
-      <details className="playback-settings"><summary aria-label="Playback settings" title="Playback settings">Settings</summary><div>
+      <details className="playback-settings"><summary aria-label="Playback settings" title="Playback settings"><svg className="gear-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.09a2 2 0 0 1 1 1.74v.5a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2Z"/><circle cx="12" cy="12" r="3"/></svg></summary><div>
       <label>Steps<select value={granularity} onChange={(e) => dispatch({ type: 'setGranularity', g: e.target.value as 'coarse' | 'fine' })} aria-label="Replay detail" aria-describedby="replay-detail-help"><option value="coarse">Main steps</option><option value="fine">Every step</option></select></label>
       <div id="replay-detail-help" className="replay-detail-help">
         <p><b>Main steps:</b> Key actions, such as expanding a dot or moving between layers.</p>
@@ -27,7 +32,7 @@ export function Transport() {
       </div>
       <label>Speed<select value={speed} onChange={(e) => dispatch({ type: 'setSpeed', speed: Number(e.target.value) })} aria-label="Playback speed"><option value={1}>1×</option><option value={2}>2×</option><option value={3}>3×</option><option value={5}>5×</option><option value={8}>8×</option></select></label>
       </div></details>
-      <button className="iconbtn square" title="Clear trace" aria-label="Clear trace" disabled={!trace || movingNode !== null} onClick={() => dispatch({ type: 'closeTrace' })}>×</button>
+      <button className="iconbtn square clear-trace-button" title="Clear trace" aria-label="Clear trace" disabled={!trace || movingNode !== null} onClick={() => dispatch({ type: 'closeTrace' })}>×</button>
     </div>
   </div>
 }

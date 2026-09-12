@@ -31,6 +31,7 @@ export function CanvasToolbar() {
   const { layer } = useShownLayer()
   const dispatch = useDispatch()
   const top = graph.entry === null ? 0 : graph.topLayer
+  const toolLabel = (item: Tool) => item === 'select' ? 'Update' : item[0].toUpperCase() + item.slice(1)
 
   return <>
     <div className="canvas-overlay tl">
@@ -45,9 +46,6 @@ export function CanvasToolbar() {
     </div>
 
     <div className="canvas-overlay tr">
-      <div className="tool-selector" role="group" aria-label="Canvas tool">
-        {(['search', 'insert', 'select'] as const).map((item) => <button key={item} className="tool-btn" disabled={locked || (item === 'search' && graph.nodes.size === 0)} aria-pressed={tool === item} onClick={() => dispatch({ type: 'setTool', tool: item })} title={item === 'search' && graph.nodes.size === 0 ? 'Add a dot in Explore before searching' : locked ? 'Finish or end the current operation to change tools' : item === 'search' ? 'Place a query' : item === 'insert' ? 'Add a vector' : 'Inspect or update a node'}><ToolIcon tool={item}/><span>{item === 'select' ? 'Update' : item}</span></button>)}
-      </div>
       <AlertDialog.Root>
         <AlertDialog.Trigger asChild><button className="button compact danger clear-graph-button" disabled={locked || graph.nodes.size === 0} title={locked ? 'Finish or end the replay before clearing nodes' : graph.nodes.size === 0 ? 'The graph is already empty' : 'Remove every node'}>Clear nodes</button></AlertDialog.Trigger>
         <AlertDialog.Portal>
@@ -59,6 +57,12 @@ export function CanvasToolbar() {
           </AlertDialog.Content>
         </AlertDialog.Portal>
       </AlertDialog.Root>
+      <div className="tool-selector" role="group" aria-label="Canvas tool">
+        {(['search', 'insert', 'select'] as const).map((item) => {
+          const label = toolLabel(item)
+          return <button key={item} className="tool-btn" disabled={locked || (item === 'search' && graph.nodes.size === 0)} aria-label={label} aria-pressed={tool === item} onClick={() => dispatch({ type: 'setTool', tool: item })} title={label}><ToolIcon tool={item}/></button>
+        })}
+      </div>
     </div>
 
   </>

@@ -61,7 +61,7 @@ export function LabPanel() {
     <div className="pane-scroll">
       <div className="panel-intro"><h2>Compare one setting</h2><p>Start with search effort. Predict whether keeping more possible answers will find more true matches, require more distance checks, or both.</p></div>
       <p className="hint">Each experiment uses the same {QUERY_COUNT} test targets on your {vectors.length} dots, asking for <ParameterLink name="k"/> = {k} matches. Recall is the share of true nearest matches found; distance checks measure work. <ParameterLink name="efSearch"/> keeps the graph fixed. The other experiments rebuild separate copies; your canvas stays unchanged.</p>
-      {vectors.length < 8 && <p className="note">Add at least 8 dots in Explore → Change the dots to enable these comparisons. For a known miss with only four dots, use <a href="/learn#four-dot-search" data-learn-reference onClick={followLearnReference}>the guided example</a>.</p>}
+      {vectors.length < 8 && <p className="note">Add at least 8 dots in Insert to enable these comparisons. For a known miss with only four dots, use <a href="/learn#four-dot-search" data-learn-reference onClick={followLearnReference}>the guided example</a>.</p>}
 
       <div className="section-title">The recall dial: <ParameterLink name="efSearch"/></div>
       <button
@@ -223,7 +223,7 @@ export function LabPanel() {
             }))}
           />
           <p className="hint">
-            The simple rule keeps the nearest candidates. The heuristic rule tries to keep different directions. Compare the measured results here; neither outcome is guaranteed for every dataset. Change the shape in Explore → Change the dots, then rerun.
+            The simple rule keeps the nearest candidates. The heuristic rule tries to keep different directions. Compare the measured results here; neither outcome is guaranteed for every dataset. Change the shape in Insert, then rerun.
           </p>
         </>
       )}

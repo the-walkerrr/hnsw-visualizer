@@ -119,7 +119,7 @@ export function initialState(): AppState {
     k: 5,
     updateMode: 'reinsert',
     movingNode: null,
-    rightTab: 'build',
+    rightTab: 'params',
     dataset,
   }
 }
@@ -176,7 +176,7 @@ function withTrace(state: AppState, graph: Graph, trace: Trace): AppState {
 function applyOp(state: AppState, op: ScriptOp): AppState {
   switch (op.t) {
     case 'clear':
-      return { ...state, graph: emptyGraph(), trace: null, step: 0, selected: null, tool: 'insert', playing: false, lastSearch: undefined, comparison: undefined, guided: false }
+      return { ...state, graph: emptyGraph(), trace: null, step: 0, selected: null, tool: 'insert', rightTab: 'params', playing: false, lastSearch: undefined, comparison: undefined, guided: false }
     case 'preset': {
       const dataset = { id: op.id, n: op.n, seed: op.seed ?? state.dataset.seed }
       const vecs = preset(op.id).make(op.n, dataset.seed)
@@ -242,7 +242,7 @@ function applyOp(state: AppState, op: ScriptOp): AppState {
       return withTrace(state, graph, trace)
     }
     case 'search': {
-      if (!state.graph.nodes.size) return { ...state, tool: 'insert', rightTab: 'build', trace: null, step: 0 }
+      if (!state.graph.nodes.size) return { ...state, tool: 'insert', rightTab: 'params', trace: null, step: 0 }
       const { trace } = runSearch(state.graph, state.params, op.at, state.k)
       return { ...withTrace(state, state.graph, trace), guided: state.guided && op.at.every((v, i) => v === EF_QUERY[i]), lastSearch: { query: [...op.at], k: state.k, params: { ...state.params }, trace } }
     }
@@ -265,8 +265,14 @@ function applyOp(state: AppState, op: ScriptOp): AppState {
         viewMode: op.mode ?? state.viewMode,
         layer: op.layer ?? state.layer,
       }
-    case 'tool':
-      return { ...state, tool: op.tool }
+    case 'tool': {
+      const rightTab = op.tool === 'select'
+        ? 'node'
+        : op.tool === 'search'
+          ? 'build'
+          : 'params'
+      return { ...state, tool: op.tool, rightTab, trace: null, step: 0, playing: false }
+    }
     case 'k':
       return { ...state, k: op.k }
     case 'tab':
@@ -377,14 +383,8 @@ export function reducer(state: AppState, action: Action): AppState {
       return { ...state, ghostLayers: !state.ghostLayers }
     case 'select':
       return { ...state, selected: action.id }
-    case 'setTool': {
-      const rightTab = action.tool === 'select'
-        ? 'node'
-        : action.tool === 'search'
-          ? 'build'
-          : state.rightTab
-      return { ...state, tool: action.tool, rightTab }
-    }
+    case 'setTool':
+      return applyOp(state, { t: 'tool', tool: action.tool })
     case 'setK':
       return { ...state, k: action.k }
     case 'setUpdateMode':
