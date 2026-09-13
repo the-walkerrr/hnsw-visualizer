@@ -395,7 +395,7 @@ export const LESSONS: Lesson[] = [
           },
           {
             t: 'p',
-            text: 'In words: **keep `e` only if `e` is closer to me than to any neighbour I already have.** If some existing neighbour `r` is closer to `e` than I am, then a search can reach `e` through `r` in one extra hop — the direct edge would be redundant, so spend the budget on an unexplored direction instead.',
+            text: 'In words: **keep `e` only if `e` is closer to me than to any neighbour I already have.** If some kept neighbour `r` is closer to `e` than the new node is, the heuristic treats the direct link as directionally redundant and saves the budget for another direction. This distance test does not prove that an edge or route already exists through `r`.',
           },
           {
             t: 'try',
@@ -546,7 +546,7 @@ export const LESSONS: Lesson[] = [
 
   {
     title: 'Deleting: tombstones and repair',
-    summary: 'The paper does not cover deletion. Here is what implementations do, and what it costs.',
+    summary: 'The paper does not cover deletion. Here are this demo’s two strategies and their costs.',
     steps: [
       {
         title: 'Soft delete — flag it and move on',
@@ -560,11 +560,11 @@ export const LESSONS: Lesson[] = [
         blocks: [
           {
             t: 'p',
-            text: 'The default in every production HNSW implementation is not to delete anything. The node is marked deleted, keeps all of its edges, and is filtered out of result lists. Searches still walk **through** it.',
+            text: 'In this visualizer, soft delete marks the node deleted, keeps all of its edges for navigation, and filters it out of returned results.',
           },
           {
             t: 'p',
-            text: 'That sounds like a hack, and it is the right call: it is O(1), it cannot corrupt the graph, and it preserves the routing structure the deleted node was part of.',
+            text: 'Deletion support and candidate handling differ across HNSW implementations, so this behavior should not be assumed for another library. Consult that library’s documentation.',
           },
           {
             t: 'ul',
@@ -614,7 +614,7 @@ export const LESSONS: Lesson[] = [
           {
             t: 'note',
             tone: 'warn',
-            text: 'It is a heuristic, not a fix. The true nearest neighbours of a repaired node may be somewhere only the deleted node had a bridge to. Repeated hard deletes therefore **degrade recall permanently**, which is exactly why real systems prefer tombstones plus a periodic rebuild.',
+            text: 'It is a heuristic, not an exact repair. The true nearest neighbours of a repaired node may be somewhere only the deleted node had a bridge to, so repeated hard deletes can weaken recall in this demo. Rebuilding is the reliable way to restore its graph from the current vectors.',
           },
           {
             t: 'p',
@@ -632,7 +632,7 @@ export const LESSONS: Lesson[] = [
 
   {
     title: 'Updating a vector',
-    summary: 'Two strategies. One is correct, one is cheap.',
+    summary: 'Two demo strategies with different search scopes and costs.',
     steps: [
       {
         title: 'Delete and re-insert',
@@ -649,7 +649,7 @@ export const LESSONS: Lesson[] = [
           },
           {
             t: 'p',
-            text: 'The safe strategy is delete + insert: hard-delete the node (repairing its neighbours), then insert the new vector as if it were new, with a full search for its neighbourhood.',
+            text: 'The broader demo strategy is delete + insert: hard-delete the node (repairing its neighbours), then insert the new vector through a graph search for its new neighbourhood.',
           },
           {
             t: 'try',
@@ -661,7 +661,7 @@ export const LESSONS: Lesson[] = [
           },
           {
             t: 'p',
-            text: 'It is correct and it is expensive — a delete with repairs plus a full insert. It also re-rolls the level, so the node may change its height in the index.',
+            text: 'This strategy does more work — a delete with repairs plus an insert — and usually searches more broadly for replacement links. It also re-rolls the level, so the node may change its height in the index. It still does not guarantee exact nearest neighbors.',
           },
         ],
       },
@@ -670,7 +670,7 @@ export const LESSONS: Lesson[] = [
         blocks: [
           {
             t: 'p',
-            text: 'The cheap strategy overwrites the vector and re-selects the node\'s edges from its **2-hop neighbourhood** only — no descent from the entry point, no level re-roll. That is roughly what `hnswlib`\'s `updatePoint` does.',
+            text: 'The local demo strategy overwrites the vector and re-selects the node\'s edges from its **2-hop neighbourhood** only — no descent from the entry point and no level re-roll.',
           },
           {
             t: 'try',
@@ -690,7 +690,7 @@ export const LESSONS: Lesson[] = [
           },
           {
             t: 'p',
-            text: 'Then query near its new position: the node is often not returned at all, because no search that starts elsewhere can reach it. **Small nudges are safe. Large moves need a re-insert.**',
+            text: 'Then query near its new position. A large move can leave the local pool without useful new routes, while a small move is less likely to do so. Neither update strategy guarantees exact nearest neighbors.',
           },
           {
             t: 'try',

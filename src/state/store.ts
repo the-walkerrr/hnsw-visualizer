@@ -44,7 +44,7 @@ export type ScriptOp =
 export interface AppState {
   lastSearch?: { query: Vec; k: number; params: Params; trace: Trace }
   comparison?: { before: { ef: number; checks: number; found: number; total: number }; after: { ef: number; checks: number; found: number; total: number } }
-  guided?: boolean
+  customGraph: boolean
   params: Params
   graph: Graph
   trace: Trace | null
@@ -93,16 +93,11 @@ export type Action =
   | { type: 'cancelNodeMove' }
   | { type: 'closeTrace' }
 
-export type PlaygroundEntry = 'empty' | 'guided'
-
-export function playgroundEntryActions(_state: Pick<AppState, 'graph'>, entry: PlaygroundEntry): Action[] {
-  return entry === 'guided' ? [{ type: 'startGuided' }] : []
-}
-
 export function initialState(): AppState {
   const dataset = { id: 'clusters' as PresetId, n: 48, seed: 7 }
   const params = { ...DEFAULT_PARAMS }
   return {
+    customGraph: false,
     params,
     graph: emptyGraph(),
     trace: null,
@@ -166,25 +161,27 @@ function withTrace(state: AppState, graph: Graph, trace: Trace): AppState {
     trace,
     lastSearch: trace.op === 'search' ? state.lastSearch : undefined,
     comparison: undefined,
-    guided: trace.op === 'search' ? state.guided : false,
     step: 0,
     playing: trace.steps.length > 0 && state.playing,
-    rightTab: trace.op === 'search' || trace.op === 'insert' ? 'queues' : state.rightTab,
+    rightTab: trace.op === 'search' || trace.op === 'insert' || trace.op === 'update-reinsert' || trace.op === 'update-in-place'
+      ? 'queues'
+      : state.rightTab,
   }
 }
 
 function applyOp(state: AppState, op: ScriptOp): AppState {
   switch (op.t) {
     case 'clear':
-      return { ...state, graph: emptyGraph(), trace: null, step: 0, selected: null, tool: 'insert', rightTab: 'params', playing: false, lastSearch: undefined, comparison: undefined, guided: false }
+      return { ...state, customGraph: false, graph: emptyGraph(), trace: null, step: 0, selected: null, tool: 'insert', rightTab: 'params', playing: false, lastSearch: undefined, comparison: undefined }
     case 'preset': {
       const dataset = { id: op.id, n: op.n, seed: op.seed ?? state.dataset.seed }
       const vecs = preset(op.id).make(op.n, dataset.seed)
       const base = op.append ? state.graph : emptyGraph()
       return {
         ...state,
+        customGraph: op.append ? true : false,
         dataset,
-        lastSearch: undefined, comparison: undefined, guided: false,
+        lastSearch: undefined, comparison: undefined,
         tool: op.n === 0 ? 'insert' : state.tool,
         graph: buildIndex(base, state.params, vecs),
         trace: null,
@@ -232,19 +229,19 @@ function applyOp(state: AppState, op: ScriptOp): AppState {
         selectedLabel === undefined
           ? null
           : ([...graph.nodes.values()].find((n) => n.label === selectedLabel)?.id ?? null)
-      return { ...state, params, graph, selected, trace: null, step: 0, lastSearch: undefined, comparison: undefined, guided: false }
+      return { ...state, params, graph, selected, trace: null, step: 0, lastSearch: undefined, comparison: undefined }
     }
     case 'insert': {
       const { graph, trace } = runInsert(state.graph, state.params, op.at, {
         label: op.label,
         level: op.level,
       })
-      return withTrace(state, graph, trace)
+      return { ...withTrace(state, graph, trace), customGraph: true }
     }
     case 'search': {
       if (!state.graph.nodes.size) return { ...state, tool: 'insert', rightTab: 'params', trace: null, step: 0 }
       const { trace } = runSearch(state.graph, state.params, op.at, state.k)
-      return { ...withTrace(state, state.graph, trace), guided: state.guided && op.at.every((v, i) => v === EF_QUERY[i]), lastSearch: { query: [...op.at], k: state.k, params: { ...state.params }, trace } }
+      return { ...withTrace(state, state.graph, trace), lastSearch: { query: [...op.at], k: state.k, params: { ...state.params }, trace } }
     }
     case 'deleteNearest': {
       const id = nearestNode(state.graph, op.at, state.params, op.mode === 'soft')
@@ -255,7 +252,7 @@ function applyOp(state: AppState, op: ScriptOp): AppState {
       const id = nearestNode(state.graph, op.at, state.params, true)
       if (id === null) return state
       const { graph, trace } = runUpdate(state.graph, state.params, id, op.to, op.mode)
-      return withTrace(state, graph, trace)
+      return { ...withTrace(state, graph, trace), customGraph: true }
     }
     case 'selectNearest':
       return { ...state, selected: nearestNode(state.graph, op.at, state.params) }
@@ -300,7 +297,7 @@ function applyDelete(state: AppState, id: NodeId, mode: 'soft' | 'hard'): AppSta
       ? runSoftDelete(state.graph, state.params, id)
       : runHardDelete(state.graph, state.params, id)
   const next = withTrace(state, graph, trace)
-  return mode === 'hard' ? { ...next, selected: null } : next
+  return mode === 'hard' ? { ...next, customGraph: true, selected: null } : { ...next, customGraph: true }
 }
 
 export function replayInProgress(state: AppState): boolean {
@@ -332,8 +329,18 @@ export function reducer(state: AppState, action: Action): AppState {
       const graph = cloneGraph(EF_GRAPH)
       const params = { ...fresh.params, efSearch: 1 }
       const { trace } = runSearch(graph, params, EF_QUERY, 1)
-      return { ...fresh, graph, params, k: 1, tool: 'search', viewMode: 'layer', rightTab: 'queues', trace, guided: true,
-        lastSearch: { query: [...EF_QUERY], k: 1, params, trace } }
+      return {
+        ...fresh,
+        graph,
+        params,
+        k: 1,
+        tool: 'search',
+        viewMode: 'layer',
+        rightTab: 'queues',
+        trace,
+        playing: false,
+        lastSearch: { query: [...EF_QUERY], k: 1, params, trace },
+      }
     }
     case 'rerunSearch': {
       const previous = state.lastSearch
@@ -400,7 +407,7 @@ export function reducer(state: AppState, action: Action): AppState {
     case 'restoreNode': {
       if (!state.graph.nodes.has(action.id)) return state
       const { graph, trace } = runRestore(state.graph, state.params, action.id)
-      return withTrace(state, graph, trace)
+      return { ...withTrace(state, graph, trace), customGraph: true }
     }
     case 'moveNode': {
       if (!state.graph.nodes.has(action.id)) return state
@@ -416,6 +423,7 @@ export function reducer(state: AppState, action: Action): AppState {
       // made a successful move look as though the node had snapped back.
       return {
         ...withTrace(state, graph, trace),
+        customGraph: true,
         step: Math.max(trace.steps.length - 1, 0),
         playing: false,
         movingNode: null,

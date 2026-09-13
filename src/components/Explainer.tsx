@@ -19,7 +19,7 @@ const TOOL_HINT: Record<string, { headline: string; body: string }> = {
 }
 
 export function Explainer({ onOpenExplanation, collapsed: controlledCollapsed, onCollapsedChange }: { onOpenExplanation?: () => void; collapsed?: boolean; onCollapsedChange?: (collapsed: boolean) => void }) {
-  const { trace, step, tool, rightTab, params, selected, guided } = useApp()
+  const { trace, step, tool, rightTab, params, selected } = useApp()
   const dispatch = useDispatch()
   const [localCollapsed, setLocalCollapsed] = useState(false)
   const collapsed = controlledCollapsed ?? localCollapsed
@@ -68,7 +68,7 @@ export function Explainer({ onOpenExplanation, collapsed: controlledCollapsed, o
     ? `This dot is ${distance(considered.vec, query, metric).toFixed(2)} from the target—not closer than W’s farthest dot (${distance(farthest.vec, query, metric).toFixed(2)}).`
     : 'This dot is not closer to the target than W’s farthest dot.'
   const searchCopy: Record<string, { title: string; detail: string }> = {
-    k2: { title: current.graph.entry === null ? 'No dots to search yet.' : 'Start at the top of the map.', detail: current.graph.entry === null ? 'Add some dots in Insert first.' : guided ? 'This example has only layer 0. Start at S (Slow drums). A is Acoustic guitar, B is Brass band, T is Trumpet solo; the pink target is the new song. Predict which linked song will be checked next, then press Next.' : 'Every search starts at the same dot on the highest layer. From here, it looks for routes toward your target.' },
+    k2: { title: current.graph.entry === null ? 'No dots to search yet.' : 'Start at the top of the map.', detail: current.graph.entry === null ? 'Add some dots in Insert first.' : 'Every search starts at the same dot on the highest layer. From here, it looks for routes toward your target.' },
     s2: { title: `Search layer ${current.vis.layer}.`, detail: current.vis.layer === 0 ? `This layer holds every dot. Keep up to ${current.vis.searchEf ?? 1} possible matches in the shortlist while exploring their links.` : 'Use the shortcuts on this layer to get closer to your target.' },
     s9: { title: `Follow the connections from ${dot(current.vis.current)}.`, detail: 'This is the closest dot still waiting to be checked. Look at its neighbors for a better match.' },
     s10: { title: `Skip ${dot(current.vis.considering)}.`, detail: 'It was already checked on this layer. Skipping it avoids going around in circles.' },
@@ -100,7 +100,6 @@ export function Explainer({ onOpenExplanation, collapsed: controlledCollapsed, o
         : copy?.detail ?? current.detail} /></p>}
       {!collapsed && insertionLevel && <details className="caption-detail"><summary>How the random level is calculated</summary><p><RichText text={current.detail}/></p></details>}
       {!collapsed && updateDone && <button className="learn-link" onClick={() => dispatch({ type: 'seek', index: Math.max(0, trace.steps.findIndex(s => s.line === 'i3')) })}>Inspect the new level decision →</button>}
-      {!collapsed && guided && step === trace.steps.length - 1 && <button className="learn-link" onClick={() => dispatch({ type: 'setRightTab', tab: params.efSearch === 1 ? 'params' : 'metrics' })}>{params.efSearch === 1 ? 'Next: set efSearch to 2, then rerun this target →' : 'Compare the results: why did keeping B help? →'}</button>}
     </div>
   )
 }

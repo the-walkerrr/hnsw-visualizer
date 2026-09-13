@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { DEFAULT_PARAMS, bruteForce, buildIndex, runSearch } from '../../hnsw/algorithm'
 import { emptyGraph } from '../../hnsw/graph'
 import { efSweep, graphStats, recallAt } from '../../hnsw/metrics'
@@ -7,11 +7,12 @@ import type { Graph, Params, Vec } from '../../hnsw/types'
 import { editsLocked, useApp } from '../../state/store'
 import { BarChart, LineChart } from '../Charts'
 import { ParameterLink } from '../ParameterLink'
-import { followLearnReference } from '../../learnReferenceNavigation'
+import { selectionRuleSummary, type RuleMeasurement } from './selectionRuleSummary'
 
 const EFS = [1, 2, 4, 8, 16, 32, 64, 128]
 const MS = [2, 4, 6, 8, 12, 16, 24]
 const QUERY_COUNT = 24
+const percent = (value: number) => `${(value * 100).toFixed(1)}%`
 
 interface Row {
   key: number
@@ -32,14 +33,24 @@ function measure(graph: Graph, params: Params, queries: Vec[], k: number) {
   return { recall: recall / queries.length, distCalls: cost / queries.length }
 }
 
+function ExperimentSetup({ changes, fixed, measures }: { changes: string; fixed: string; measures: string }) {
+  return <dl className="experiment-setup">
+    <div><dt>Changes</dt><dd>{changes}</dd></div>
+    <div><dt>Stays fixed</dt><dd>{fixed}</dd></div>
+    <div><dt>Measure</dt><dd>{measures}</dd></div>
+  </dl>
+}
+
+function Conclusion({ children }: { children: ReactNode }) {
+  return <div className="experiment-conclusion" aria-live="polite"><span>CONCLUSION FROM THIS RUN</span><p>{children}</p></div>
+}
+
 export function LabPanel() {
   const state = useApp()
   const { params, graph, dataset, k } = state
   const [efRows, setEfRows] = useState<ReturnType<typeof efSweep> | null>(null)
   const [mRows, setMRows] = useState<Row[] | null>(null)
-  const [ruleRows, setRuleRows] = useState<Array<{ rule: string; recall: number; distCalls: number }> | null>(
-    null,
-  )
+  const [ruleRows, setRuleRows] = useState<RuleMeasurement[] | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
 
   const queries = useMemo(() => preset('uniform').make(QUERY_COUNT, 20250826), [])
@@ -47,6 +58,8 @@ export function LabPanel() {
     () => [...graph.nodes.values()].sort((a, b) => a.seq - b.seq).map((n) => n.vec),
     [graph],
   )
+  const efValues = useMemo(() => [...new Set([...EFS, params.efSearch])].sort((a, b) => a - b), [params.efSearch])
+  const mValues = useMemo(() => [...new Set([...MS, params.M])].sort((a, b) => a - b), [params.M])
 
   const run = (name: string, fn: () => void) => {
     setBusy(name)
@@ -57,67 +70,81 @@ export function LabPanel() {
     }, 16)
   }
 
+  const efCurrent = efRows?.find((row) => row.ef === params.efSearch)
+  const efBest = efRows?.reduce((best, row) => row.recall > best.recall ? row : best)
+  const mCurrent = mRows?.find((row) => row.key === params.M)
+  const mBest = mRows?.reduce((best, row) => row.recall > best.recall || (row.recall === best.recall && row.edges < best.edges) ? row : best)
+  const heuristic = ruleRows?.find((row) => row.rule === 'heuristic')
+  const simple = ruleRows?.find((row) => row.rule === 'simple')
+
   return (
     <div className="pane-scroll">
-      <div className="panel-intro"><h2>Compare one setting</h2><p>Start with search effort. Predict whether keeping more possible answers will find more true matches, require more distance checks, or both.</p></div>
-      <p className="hint">Each experiment uses the same {QUERY_COUNT} test targets on your {vectors.length} dots, asking for <ParameterLink name="k"/> = {k} matches. Recall is the share of true nearest matches found; distance checks measure work. <ParameterLink name="efSearch"/> keeps the graph fixed. The other experiments rebuild separate copies; your canvas stays unchanged.</p>
-      {vectors.length < 8 && <p className="note">Add at least 8 dots in Insert to enable these comparisons. For a known miss with only four dots, use <a href="/learn#four-dot-search" data-learn-reference onClick={followLearnReference}>the guided example</a>.</p>}
+      <div className="panel-intro"><p className="section-kicker">Experiments</p><h2>Change one decision. Measure the trade-off.</h2><p>Each experiment states what changes, what stays fixed, and the question its charts answer.</p></div>
+      <div className="experiment-key" aria-label="How to read experiment measurements">
+        <div><b>Recall@k ↑</b><span>Share of the true nearest matches found. Higher is better.</span></div>
+        <div><b>Checks/query ↓</b><span>Average distance calculations per target. Lower is less work.</span></div>
+        <div><b>Graph edges ↓</b><span>Stored links in the rebuilt index. Fewer generally means less memory.</span></div>
+      </div>
+      <p className="experiment-common">All runs use the same {QUERY_COUNT} test targets on your {vectors.length} dots and request <ParameterLink name="k"/> = {k} matches. Experiments never replace the graph on your canvas.</p>
+      {vectors.length < 8 && <p className="note">Add at least 8 dots in Insert to enable these comparisons.</p>}
 
-      <div className="section-title">The recall dial: <ParameterLink name="efSearch"/></div>
-      <button
-        className="iconbtn primary"
-        disabled={editsLocked(state) || busy !== null || vectors.length < 8}
-        onClick={() => run('ef', () => setEfRows(efSweep(graph, params, queries, k, EFS)))}
-      >
-        {busy === 'ef' ? 'running…' : 'Compare search effort'}
-      </button>
-      {efRows && (
-        <>
+      <section className="experiment-block" aria-labelledby="experiment-ef-title">
+        <header><span>EXPERIMENT 1 · QUERY TIME</span><h3 id="experiment-ef-title">Does more search effort improve recall?</h3><p>Run the same queries through the same graph while changing only the number of best candidates retained during layer-0 search.</p></header>
+        <ExperimentSetup
+          changes={`efSearch = ${efValues.join(', ')}. Current: ${params.efSearch}.`}
+          fixed={`Graph, links, vectors, metric (${params.metric}), k (${k}), and query set.`}
+          measures="Recall@k and average distance checks per query."
+        />
+        <button
+          className="button primary compact experiment-run"
+          disabled={editsLocked(state) || busy !== null || vectors.length < 8}
+          onClick={() => run('ef', () => setEfRows(efSweep(graph, params, queries, k, efValues)))}
+        >
+          {busy === 'ef' ? `Running ${efValues.length} searches…` : `Run ${efValues.length}-value comparison`}
+        </button>
+        {efRows && <div className="experiment-results">
           <LineChart
-            title="Recall@k vs efSearch" xTitle="efSearch" yTitle="Recall"
-            note="same targets and graph; only shortlist capacity changes"
+            title="Accuracy as search effort increases" xTitle="efSearch (candidate slots)" yTitle="Recall@k (% true)"
+            note="outlined point = current setting"
             points={efRows.map((r) => ({ x: r.ef, y: r.recall }))}
             xScale="ordinal"
             yMax={1}
             yFormat={(v) => `${(v * 100).toFixed(0)}%`}
+            highlightX={params.efSearch}
           />
-          {efRows[0].recall > 0.9 && (
-            <div className="note warn">
-              The first setting already finds {(efRows[0].recall * 100).toFixed(0)}% of true matches. If the recall line stays flat, extra effort found no additional correct answers for these targets. Compare the distance checks too. This result applies to this example; it does not promise that every query is easy. Try the <a href="/learn#four-dot-search" data-learn-reference onClick={followLearnReference}>four-dot detour</a> for an example where an extra slot helps.
-            </div>
-          )}
           <LineChart
-            title="Distance computations vs efSearch" xTitle="efSearch" yTitle="Distance checks"
-            note="lower is better"
+            title="Work as search effort increases" xTitle="efSearch (candidate slots)" yTitle="Checks / query (count)"
+            note="dashed line = exact scan"
             points={efRows.map((r) => ({ x: r.ef, y: r.distCalls }))}
             xScale="ordinal"
             color="var(--orange)"
+            highlightX={params.efSearch}
             rule={{
               at: efRows[0]?.bruteForceDistCalls ?? 0,
               label: `exact scan = ${Math.round(efRows[0]?.bruteForceDistCalls ?? 0)}`,
             }}
           />
-          {efRows[efRows.length - 1].distCalls > (efRows[0]?.bruteForceDistCalls ?? 0) && (
-            <div className="note">
-              Compare the orange line with the dashed exact-scan baseline. A tested setting used{' '}
-              <b>more</b> distance checks than comparing against every vector:
-              this measured run used more checks than an exact scan over {vectors.length} dots. This measures distance checks, not total running time.
-            </div>
-          )}
-          <p className="hint">
-            Read both charts: higher recall means more true matches; lower distance checks means less work. Prefer a setting that gives the accuracy you need without unnecessary checks. When <ParameterLink name="k"/> is greater than <ParameterLink name="efSearch"/>, this demo uses <ParameterLink name="k"/> slots, so the first settings may behave identically.
-          </p>
-        </>
-      )}
+          {efCurrent && efBest && <Conclusion>
+            Current <ParameterLink name="efSearch"/> = {params.efSearch} achieved <b>{percent(efCurrent.recall)} recall</b> with <b>{Math.round(efCurrent.distCalls)} checks/query</b>. The best measured recall was <b>{percent(efBest.recall)}</b>, first reached at efSearch = {efBest.ef} with {Math.round(efBest.distCalls)} checks/query. {Math.abs(efBest.recall - efCurrent.recall) < 0.0001 ? 'More search effort did not improve accuracy for these targets.' : `The measured accuracy gain over the current setting was ${((efBest.recall - efCurrent.recall) * 100).toFixed(1)} percentage points.`}
+          </Conclusion>}
+          <p className="experiment-caveat">If <ParameterLink name="k"/> exceeds <ParameterLink name="efSearch"/>, the effective candidate capacity is k, so early values can be identical. The exact-scan line is a distance-check reference, not elapsed time.</p>
+        </div>}
+      </section>
 
-      <div className="section-title">Edge budget: <ParameterLink name="M"/></div>
-      <button
-        className="iconbtn primary"
-        disabled={editsLocked(state) || busy !== null || vectors.length < 8}
-        onClick={() =>
-          run('m', () =>
-            setMRows(
-              MS.map((M) => {
+      <section className="experiment-block" aria-labelledby="experiment-m-title">
+        <header><span>EXPERIMENT 2 · BUILD TIME</span><h3 id="experiment-m-title">Do more connections buy better searches?</h3><p>Build a separate index for each connection budget, then run the same query set against every rebuilt copy.</p></header>
+        <ExperimentSetup
+          changes={`M = ${mValues.join(', ')}. Current: ${params.M}. Each run also uses Mmax = M, Mmax0 = 2M, and mL = 1/ln(M).`}
+          fixed={`Vectors and insertion order, metric (${params.metric}), efSearch (${params.efSearch}), k (${k}), and query set.`}
+          measures="Recall@k, average search work, average L0 degree, and total graph edges."
+        />
+        <button
+          className="button primary compact experiment-run"
+          disabled={editsLocked(state) || busy !== null || vectors.length < 8}
+          onClick={() =>
+            run('m', () =>
+              setMRows(
+                mValues.map((M) => {
                 const p: Params = {
                   ...params,
                   M,
@@ -135,45 +162,43 @@ export function LabPanel() {
                   avgDegree: s.layers[0]?.avgDegree ?? 0,
                   edges: s.edges,
                 }
-              }),
-            ),
-          )
-        }
-      >
-        {busy === 'm' ? 'building 7 indexes…' : 'Compare connection settings'}
-      </button>
-      {mRows && (
-        <>
+                }),
+              ),
+            )
+          }
+        >
+          {busy === 'm' ? `Building ${mValues.length} indexes…` : `Build and compare ${mValues.length} indexes`}
+        </button>
+        {mRows && <div className="experiment-results">
           <LineChart
-            title="Recall@k vs M" xTitle="M" yTitle="Recall"
-            note="each point is a freshly built index"
+            title="Accuracy by connection budget" xTitle="M (links / new node)" yTitle="Recall@k (% true)"
+            note="outlined point = current setting"
             points={mRows.map((r) => ({ x: r.key, y: r.recall }))}
             xScale="ordinal"
             yMax={1}
             yFormat={(v) => `${(v * 100).toFixed(0)}%`}
+            highlightX={params.M}
           />
           <LineChart
-            title="Edges in the graph vs M" xTitle="M" yTitle="Edges"
-            note="memory scales with this, not with recall"
+            title="Index size by connection budget" xTitle="M (links / new node)" yTitle="Edges (undirected links)"
+            note="more edges generally use more memory"
             points={mRows.map((r) => ({ x: r.key, y: r.edges }))}
             xScale="ordinal"
             color="var(--orange)"
+            highlightX={params.M}
           />
-          <table className="table">
+          <table className="table experiment-table">
+            <caption>All measurements for the rebuilt indexes</caption>
             <thead>
               <tr>
-                <th>M</th>
-                <th>recall</th>
-                <th>dist/query</th>
-                <th>avg deg L0</th>
-                <th>edges</th>
+                <th>M</th><th>Recall@k</th><th>Checks/query</th><th>Avg L0 degree</th><th>Edges</th>
               </tr>
             </thead>
             <tbody>
               {mRows.map((r) => (
                 <tr key={r.key}>
-                  <td>{r.key}</td>
-                  <td>{(r.recall * 100).toFixed(0)}%</td>
+                  <td>{r.key}{r.key === params.M ? ' · current' : ''}</td>
+                  <td>{percent(r.recall)}</td>
                   <td>{Math.round(r.distCalls)}</td>
                   <td>{r.avgDegree.toFixed(1)}</td>
                   <td>{r.edges}</td>
@@ -181,39 +206,42 @@ export function LabPanel() {
               ))}
             </tbody>
           </table>
-          <p className="hint">
-            {mRows.every(row => Math.round(row.recall * 100) === Math.round(mRows[0].recall * 100))
-              ? 'At the displayed precision, every connection setting found the same share of true matches. No accuracy improvement is visible here; compare edge count and work. Whole percentages can hide smaller differences.'
-              : 'Compare the gain in true matches against the number of links and distance checks. More links do not guarantee an improvement for every target.'}
-            {' '}This comparison also resets <ParameterLink name="Mmax"/> to <ParameterLink name="M"/>, <ParameterLink name="Mmax0"/> to 2 × <ParameterLink name="M"/>, and <ParameterLink name="mL"/> to 1 / ln(<ParameterLink name="M"/>), so layer assignments can change.
-          </p>
-        </>
-      )}
+          {mCurrent && mBest && <Conclusion>
+            Current <ParameterLink name="M"/> = {params.M} produced <b>{percent(mCurrent.recall)} recall</b>, {mCurrent.edges} edges, and {Math.round(mCurrent.distCalls)} checks/query. The best measured recall was <b>{percent(mBest.recall)}</b> at M = {mBest.key}, using {mBest.edges} edges. {mRows.every((row) => Math.abs(row.recall - mRows[0].recall) < 0.0001) ? 'Recall was flat here, so the larger indexes bought no measured accuracy gain for these targets.' : 'Compare that accuracy gain with the added links and search work before choosing a larger M.'}
+          </Conclusion>}
+          <p className="experiment-caveat">This is a conventional connection-budget family, not a pure M-only test: the degree caps and layer multiplier change with M as listed above. Rebuilding can also change random layer assignments.</p>
+        </div>}
+      </section>
 
-      <div className="section-title"><ParameterLink name="neighborRule" label="Selection rule"/>: heuristic vs simple</div>
-      <button
-        className="iconbtn primary"
-        disabled={editsLocked(state) || busy !== null || vectors.length < 8}
-        onClick={() =>
-          run('rule', () =>
-            setRuleRows(
-              (['heuristic', 'simple'] as const).map((rule) => {
+      <section className="experiment-block" aria-labelledby="experiment-rule-title">
+        <header><span>EXPERIMENT 3 · LINK CHOICE</span><h3 id="experiment-rule-title">Nearest links or diverse directions?</h3><p>Build the same vectors twice. Simple keeps the nearest candidates; Heuristic may trade a close link for a route in a different direction.</p></header>
+        <ExperimentSetup
+          changes={`Neighbor selection rule: heuristic versus simple. Current: ${params.neighborRule}.`}
+          fixed={`Vectors and order, M (${params.M}), all other build settings, efSearch (${params.efSearch}), k (${k}), and query set.`}
+          measures="Recall@k and average distance checks per query."
+        />
+        <button
+          className="button primary compact experiment-run"
+          disabled={editsLocked(state) || busy !== null || vectors.length < 8}
+          onClick={() =>
+            run('rule', () =>
+              setRuleRows(
+                (['heuristic', 'simple'] as const).map((rule) => {
                 const p: Params = { ...params, neighborRule: rule }
                 const g = buildIndex(emptyGraph(), p, vectors)
                 const m = measure(g, p, queries, k)
                 return { rule, ...m }
-              }),
-            ),
-          )
-        }
-      >
-        {busy === 'rule' ? 'building 2 indexes…' : 'compare selection rules'}
-      </button>
-      {ruleRows && (
-        <>
+                }),
+              ),
+            )
+          }
+        >
+          {busy === 'rule' ? 'Building 2 indexes…' : 'Build and compare both rules'}
+        </button>
+        {ruleRows && <div className="experiment-results">
           <BarChart
-            title="Recall@k by neighbour-selection rule" labelTitle="Selection rule" valueTitle="Recall"
-            note={`${dataset.id} dataset · same vectors, same order, same M`}
+            title="Accuracy by neighbor-selection rule" labelTitle="Selection rule" valueTitle="Recall@k (% true)"
+            note={`${dataset.id} vectors · current rule: ${params.neighborRule}`}
             horizontal
             format={(v) => `${(v * 100).toFixed(0)}%`}
             bars={ruleRows.map((r) => ({
@@ -222,11 +250,23 @@ export function LabPanel() {
               color: r.rule === 'heuristic' ? 'var(--blue)' : 'var(--orange)',
             }))}
           />
-          <p className="hint">
-            The simple rule keeps the nearest candidates. The heuristic rule tries to keep different directions. Compare the measured results here; neither outcome is guaranteed for every dataset. Change the shape in Insert, then rerun.
-          </p>
-        </>
-      )}
+          <BarChart
+            title="Search work by neighbor-selection rule" labelTitle="Selection rule" valueTitle="Checks / query (count)"
+            note="same queries · lower is less work"
+            horizontal
+            format={(value) => value.toFixed(1)}
+            bars={ruleRows.map((r) => ({
+              label: r.rule,
+              value: r.distCalls,
+              color: r.rule === 'heuristic' ? 'var(--blue)' : 'var(--orange)',
+            }))}
+          />
+          {heuristic && simple && <Conclusion>
+            {selectionRuleSummary(heuristic, simple)}
+          </Conclusion>}
+          <p className="experiment-caveat">This result describes the current vectors and targets, not a universal winner. Change the dataset shape in Insert and rerun to see when diverse links matter.</p>
+        </div>}
+      </section>
 
       <details className="advanced-details"><summary>Advanced reference defaults</summary><div className="section-title">Reference defaults</div>
       <table className="table">

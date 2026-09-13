@@ -3,6 +3,7 @@ import { edgesOnLayer } from '../hnsw/graph'
 import { distance } from '../hnsw/metric'
 import { EF_GRAPH, EF_QUERY, efSearchExample } from '../lessons/efSearchExample'
 import { ParameterLink } from './ParameterLink'
+import { slotLabel } from './formatCount'
 
 const runs = [efSearchExample(1), efSearchExample(2)]
 const edges = edgesOnLayer(EF_GRAPH, 0)
@@ -12,7 +13,7 @@ const dist = (id: number) => distance(EF_GRAPH.nodes.get(id)!.vec, EF_QUERY, 'eu
 const displayDistance = (id: number) => Number(dist(id).toFixed(1))
 
 function CandidateList({ ids, name, ef, capacity }: { ids: number[]; name: string; ef: number; capacity?: number }) {
-  return <div className="ef-list"><div className="ef-list-heading"><b>{name}</b>{capacity && <span>{ids.length} / {capacity} slots</span>}</div>
+  return <div className="ef-list"><div className="ef-list-heading"><b>{name}</b>{capacity && <span>{ids.length} / {slotLabel(capacity)}</span>}</div>
     <ol aria-label={`${name}, efSearch ${ef}`}>
       {ids.map((id) => <li key={id}><b>{label(id)}</b><span>{displayDistance(id)}</span></li>)}
       {capacity && Array.from({ length: capacity - ids.length }, (_, i) => <li className="ef-slot-empty" key={`empty-${i}`}>empty</li>)}
@@ -45,7 +46,7 @@ function SearchRun({ ef, run }: { ef: number; run: ReturnType<typeof efSearchExa
     title = `${step.line === 's12' ? 'Reject' : 'Keep'} ${label(considered)} at distance ${displayDistance(considered)}`
     detail = step.line === 's12'
       ? `The list is full. ${label(considered)} (${displayDistance(considered)}) is farther than ${label(worst)} (${displayDistance(worst)}), so it joins neither list. Its links will not be explored; T stays hidden.`
-      : `${hadRoom ? 'There is a spare slot, so accept it.' : `It beats the farthest kept dot, ${label(worst)} (${displayDistance(worst)}).`} Add it to both lists.${removed.length ? ` Remove ${removed.map(label).join(', ')} from best so far to stay within ${ef} slots.` : ''}`
+      : `${hadRoom ? 'There is a spare slot, so accept it.' : `It beats the farthest kept dot, ${label(worst)} (${displayDistance(worst)}).`} Add it to both lists.${removed.length ? ` Remove ${removed.map(label).join(', ')} from best so far to stay within ${slotLabel(ef)}.` : ''}`
   } else if (done) {
     title = `Queue empty: return ${result}`
     detail = ef === 1
@@ -78,7 +79,7 @@ function SearchRun({ ef, run }: { ef: number; run: ReturnType<typeof efSearchExa
       })}
       <g className="query-mark"><path d="M313 83l14 14m0-14-14 14" /></g><text className="ef-query-label" x="334" y="75">q</text>
     </svg>
-    <div className="ef-progress"><span>{step.distCalls} distance checks</span><span>Step {index + 1} / {run.frames.length}</span></div>
+    <div className="ef-progress"><span>{step.distCalls} distance check{step.distCalls === 1 ? '' : 's'}</span><span>Step {index + 1} / {run.frames.length}</span></div>
     <div className="ef-buttons"><button className="button compact" aria-label={`Previous step, efSearch ${ef}`} disabled={index === 0} onClick={() => setIndex(index - 1)}>← Back</button><button className="button compact" onClick={() => setIndex(done ? 0 : run.frames.length - 1)}>{done ? 'Restart' : 'Show result'}</button><button className="button compact primary" aria-label={`Next step, efSearch ${ef}`} disabled={done} onClick={() => setIndex(index + 1)}>Next →</button></div>
     <div className="ef-lists"><CandidateList ids={step.vis.dynamic} name="Best so far · W" ef={ef} capacity={ef} /><CandidateList ids={step.vis.candidates} name="To check · C" ef={ef} /></div>
     <div className="ef-step" aria-live="polite" aria-atomic="true"><b>{title}</b><p>{detail}</p></div>

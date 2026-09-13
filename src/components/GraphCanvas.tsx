@@ -62,8 +62,8 @@ export function GraphCanvas({
     () =>
       state.viewMode === 'stack'
         ? stackProjector(topLayer, { yaw: cam.yaw, pitch: cam.pitch })
-        : layerProjector(state.guided ? { width: 380, height: 255 } : undefined),
-    [state.viewMode, state.guided, topLayer, cam.yaw, cam.pitch],
+        : layerProjector(),
+    [state.viewMode, topLayer, cam.yaw, cam.pitch],
   )
   const layers = state.viewMode === 'stack' ? range(topLayer, 0) : [shownLayer]
 

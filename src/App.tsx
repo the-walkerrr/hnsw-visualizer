@@ -16,7 +16,7 @@ import { OperationNotice } from "./components/OperationNotice";
 import { ParameterLink } from "./components/ParameterLink";
 import { restorePendingLearnReturn } from "./learnReferenceNavigation";
 import { ParamsPanel } from "./components/panels/ParamsPanel";
-import { playgroundEntryActions, useApp, useDispatch, type PlaygroundEntry, type RightTab } from "./state/store";
+import { useApp, useDispatch, type RightTab } from "./state/store";
 
 const TABS: Array<[RightTab, string, string]> = [
   ["build", "Search", "Choose a target and tune query-time parameters"],
@@ -52,7 +52,7 @@ function Mark() {
   );
 }
 
-function Home({ navigate, onOpenPlayground }: { navigate: (route: Route) => void; onOpenPlayground: () => void }) {
+function Home({ navigate, onOpenPlayground, onOpenFirstSearch }: { navigate: (route: Route) => void; onOpenPlayground: () => void; onOpenFirstSearch: () => void }) {
   return (
     <main className="landing-page">
       <section className="landing-hero">
@@ -61,7 +61,8 @@ function Home({ navigate, onOpenPlayground }: { navigate: (route: Route) => void
           <h2>Learn HNSW by watching it work.</h2>
           <p className="hero-sub">Start with dots connected by lines. Place a search point, watch the algorithm move toward nearby dots, and learn one idea at a time. No vector-database background needed.</p>
           <div className="landing-actions">
-            <a className="button quiet" href="/playground" onClick={(e) => { e.preventDefault(); onOpenPlayground(); }}>Open playground <span aria-hidden="true">→</span></a>
+            <a className="button quiet desktop-home-action" href="/playground" onClick={(e) => { e.preventDefault(); onOpenPlayground(); }}>Full Playground · desktop, 900 px or wider <span aria-hidden="true">→</span></a>
+            <a className="button primary mobile-home-action" href="/learn#four-dot-search" onClick={(e) => { e.preventDefault(); onOpenFirstSearch(); }}>Try the interactive search <span aria-hidden="true">→</span></a>
             <a className="button primary" href="/learn" onClick={(e) => { e.preventDefault(); navigate("learn"); }}>Learn from the beginning</a>
           </div>
           <p className="hero-footnote">Beginner guide · step-by-step replay · real search results</p>
@@ -103,10 +104,15 @@ export default function App() {
     window.history.pushState({}, "", path);
     setRoute(next);
   }, []);
-  const openPlayground = useCallback((entry: PlaygroundEntry = "empty") => {
-    for (const action of playgroundEntryActions(state, entry)) dispatch(action);
+  const openPlayground = useCallback(() => navigate("playground"), [navigate]);
+  const openFirstSearch = useCallback(() => {
+    window.history.pushState({}, "", "/learn#four-dot-search");
+    setRoute("learn");
+  }, []);
+  const startFirstSearch = useCallback(() => {
+    dispatch({ type: "startGuided" });
     navigate("playground");
-  }, [dispatch, navigate, state]);
+  }, [dispatch, navigate]);
   const toggleFullscreen = useCallback(async () => {
     if (document.fullscreenElement) {
       await document.exitFullscreen();
@@ -135,6 +141,11 @@ export default function App() {
     restorePendingLearnReturn();
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
+  useEffect(() => {
+    if (route !== "learn" || !window.location.hash) return;
+    const frame = requestAnimationFrame(() => document.querySelector(window.location.hash)?.scrollIntoView());
+    return () => cancelAnimationFrame(frame);
+  }, [route]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (route !== "playground") return;
@@ -185,7 +196,7 @@ export default function App() {
         <div className="spacer" />
         <ThemeToggle />
       </header>
-      {route === "home" ? <Home navigate={navigate} onOpenPlayground={() => openPlayground()} /> : route === "learn" ? <ExplanationPage onOpenPlayground={() => openPlayground()} onStartFirstSearch={() => openPlayground("guided")} /> : (
+      {route === "home" ? <Home navigate={navigate} onOpenPlayground={openPlayground} onOpenFirstSearch={openFirstSearch} /> : route === "learn" ? <ExplanationPage onOpenPlayground={openPlayground} onStartFirstSearch={startFirstSearch} /> : (
         <main ref={playgroundRef} className={`playground-layout${panelCollapsed ? " panel-collapsed" : ""}${isFullscreen ? " is-fullscreen" : ""}`}>
           <section className="workbench" aria-label="Graph visualization and replay"><div className="canvas-stage"><GraphCanvas isFullscreen={isFullscreen} onToggleFullscreen={toggleFullscreen} /><CanvasToolbar />{finishedInsert && <InsertReplayPrompt />}</div><Transport /><Explainer collapsed={explainerCollapsed} onCollapsedChange={setExplainerCollapsed} onOpenExplanation={() => navigate("learn")} /></section>
           <aside className={`inspector${panelCollapsed ? " collapsed" : ""}`}>

@@ -11,6 +11,7 @@ function ControlCard({ guide }: { guide: ControlGuide }) {
     <div className="disclosure-content">
       <p>{guide.plain}</p>
       <dl>{guide.inputs.map((input) => <div key={input.label}><dt>{input.label}</dt><dd>{input.explanation}</dd></div>)}</dl>
+      <div className="control-example"><span>EXAMPLE</span><p>{guide.example}</p></div>
       <p className="hint">{guide.when}</p>
       {guide.learnMore && <a className="control-deep-link" href={guide.learnMore.href} data-learn-reference onClick={followLearnReference}>{guide.learnMore.label} →</a>}
     </div>
@@ -188,7 +189,52 @@ function DeleteVisual() {
   </Visual>
 }
 
-export function ExplanationPage({ onOpenPlayground, onStartFirstSearch }: { onOpenPlayground: () => void; onStartFirstSearch: () => void }) {
+function UpdateVisual() {
+  return <Visual title="Same move, two ways to choose replacement links">
+    <div className="update-compare">
+      <svg viewBox="0 0 360 332" role="img" aria-labelledby="update-reinsert-title update-reinsert-desc">
+        <title id="update-reinsert-title">Reinsert after a large move</title>
+        <desc id="update-reinsert-desc">Node N moves from the left cluster to the right cluster. The demo removes its old links, searches broadly, and connects it to nearby candidates found around the new position.</desc>
+        <text className="stage-title" x="180" y="32" textAnchor="middle">REINSERT · BROAD SEARCH</text>
+        <text className="visual-caption" x="180" y="49" textAnchor="middle">delete old links, then search from the graph entry</text>
+        <g className="update-old-edge"><path d="M90 158 48 102M90 158 45 218M90 158 130 92M90 158 134 224"/></g>
+        <g className="visual-node update-old-pool"><circle cx="48" cy="102" r="8"/><circle cx="45" cy="218" r="8"/><circle cx="130" cy="92" r="8"/><circle cx="134" cy="224" r="8"/></g>
+        <circle className="update-ghost" cx="90" cy="158" r="11"/>
+        <text className="update-position-label" x="90" y="181" textAnchor="middle">old N</text>
+        <path className="update-move-arrow" d="M113 158h96m0 0-10-7m10 7-10 7"/>
+        <text className="update-arrow-label" x="161" y="146" textAnchor="middle">vector moves</text>
+        <g className="kept-edge"><path d="M234 158 274 96M234 158 308 153M234 158 280 221"/></g>
+        <g className="update-nearby"><circle cx="274" cy="96" r="8"/><circle cx="308" cy="153" r="8"/><circle cx="280" cy="221" r="8"/></g>
+        <g className="update-focus"><circle cx="234" cy="158" r="12"/><text x="234" y="162" textAnchor="middle">N</text></g>
+        <text className="update-position-label" x="234" y="181" textAnchor="middle">new N</text>
+        <text className="update-outcome good" x="180" y="278" textAnchor="middle">✓ links toward nearby candidates found by the broad search</text>
+        <text className="visual-caption" x="180" y="298" textAnchor="middle">more search work · no exact-neighbor guarantee</text>
+      </svg>
+      <svg viewBox="0 0 360 332" role="img" aria-labelledby="update-local-title update-local-desc">
+        <title id="update-local-title">In-place repair after the same move</title>
+        <desc id="update-local-desc">Node N makes the same move, but the demo only considers its old two-hop pool. Its replacement links can point back toward the old region while nearer nodes remain unlinked.</desc>
+        <text className="stage-title" x="180" y="32" textAnchor="middle">IN PLACE · LOCAL POOL</text>
+        <text className="visual-caption" x="180" y="49" textAnchor="middle">keep the level, inspect only the old two-hop pool</text>
+        <g className="update-old-edge"><path d="M90 158 48 102M90 158 45 218M90 158 130 92M90 158 134 224"/></g>
+        <g className="visual-node update-old-pool"><circle cx="48" cy="102" r="8"/><circle cx="45" cy="218" r="8"/><circle cx="130" cy="92" r="8"/><circle cx="134" cy="224" r="8"/></g>
+        <circle className="update-ghost" cx="90" cy="158" r="11"/>
+        <text className="update-position-label" x="90" y="181" textAnchor="middle">old N</text>
+        <path className="update-move-arrow" d="M113 158h96m0 0-10-7m10 7-10 7"/>
+        <text className="update-arrow-label" x="161" y="146" textAnchor="middle">vector moves</text>
+        <g className="update-local-edge"><path d="M234 158 130 92M234 158 134 224"/></g>
+        <g className="update-nearby"><circle cx="274" cy="96" r="8"/><circle cx="308" cy="153" r="8"/><circle cx="280" cy="221" r="8"/></g>
+        <g className="update-focus"><circle cx="234" cy="158" r="12"/><text x="234" y="162" textAnchor="middle">N</text></g>
+        <text className="update-position-label" x="234" y="181" textAnchor="middle">new N</text>
+        <text className="update-unlinked-label" x="296" y="75" textAnchor="middle">nearby candidates outside the pool</text>
+        <text className="update-outcome risky" x="180" y="278" textAnchor="middle">! links may reach back to the old region</text>
+        <text className="visual-caption" x="180" y="298" textAnchor="middle">less work · can miss useful routes after a large move</text>
+      </svg>
+    </div>
+    <figcaption>Both panels show the same move. <b>Reinsert</b> searches more broadly for a new neighborhood. <b>In place</b> skips that search: its candidate pool comes from the old one- and two-hop neighborhood, so its orange dashed links can point back toward the old region. These are possible demo outcomes, not quality guarantees.</figcaption>
+  </Visual>
+}
+
+export function ExplanationPage({ onOpenPlayground, onStartFirstSearch }: { onOpenPlayground: () => void; onStartFirstSearch?: () => void }) {
   const page = useRef<HTMLElement>(null)
   const [chapter, setChapter] = useState('01')
   const [returnPoint, setReturnPoint] = useState<LearnReturnPoint | null>(readLearnReturnPoint)
@@ -249,15 +295,16 @@ export function ExplanationPage({ onOpenPlayground, onStartFirstSearch }: { onOp
 
       <div className="guide-layout">
         <nav className="guide-toc" aria-label="Learn HNSW contents">
-          <span className="toc-label">Chapter {chapter} of 08 · place saved</span>
+          <span className="toc-label">Chapter {chapter} of 09 · place saved</span>
           <a href="#chapter-problem"><span>01</span>The problem</a>
           <a href="#chapter-connect"><span>02</span>Connect vectors</a>
           <a href="#chapter-layers"><span>03</span>Why layers</a>
           <a href="#chapter-search"><span>04</span>Search</a>
           <a href="#chapter-insert"><span>05</span>Insert</a>
           <a href="#chapter-delete"><span>06</span>Delete</a>
-          <a href="#parameter-guide"><span>07</span>Parameters</a>
-          <a href="#algorithm-steps"><span>08</span>Algorithm steps</a>
+          <a href="#chapter-update"><span>07</span>Update</a>
+          <a href="#parameter-guide"><span>08</span>Parameters</a>
+          <a href="#algorithm-steps"><span>09</span>Algorithm steps</a>
         </nav>
 
         <div className="guide-content">
@@ -271,6 +318,7 @@ export function ExplanationPage({ onOpenPlayground, onStartFirstSearch }: { onOp
                 <div><dt>Distance</dt><dd>How far a stored vector is from q. Smaller means more similar.</dd></div>
                 <div><dt><ParameterLink name="k"/></dt><dd>The number of matches to return.</dd></div>
               </dl>
+              <div className="example-card representation-example"><span>ONE TOY REPRESENTATION</span><h4>From a song to numbers, then back to a song.</h4><p>Imagine two illustrative axes: energy and acoustic feel. “Quiet Piano” is stored as vector <code>[0.8, 0.1]</code>, while “Dance Beat” is <code>[0.2, 0.9]</code>. A new query [0.8, 0.2] plots close to “Quiet Piano”, so a nearest-neighbor search returns that stored song. Real embeddings usually have hundreds of dimensions whose axes are not human-readable; these two numbers only make the representation drawable.</p></div>
               <h3 className="lesson-subheading">Brute force is simple and exact</h3>
               <ol className="explanation-steps">
                 <li><b>Measure.</b><span>Calculate the query’s distance to every stored vector.</span></li>
@@ -281,7 +329,7 @@ export function ExplanationPage({ onOpenPlayground, onStartFirstSearch }: { onOp
               <p>The visual below makes the cost visible: one line is one distance calculation.</p>
               <BruteForceVisual />
               <div className="comparison-strip"><div><span>GOOD</span><strong>Always exact</strong><p>If the distance rule is correct, brute force cannot miss the nearest item.</p></div><div><span>THE DOWNSIDE</span><strong>Work grows with every item</strong><p>Double the collection and each query performs roughly twice as many distance calculations.</p></div></div>
-              <p className="chapter-takeaway"><b>HNSW’s idea:</b> spend time building a navigable map once, then follow a small number of promising links for each query.</p>
+              <p className="chapter-takeaway"><b>HNSW stands for Hierarchical Navigable Small World.</b> It builds a layered graph to find likely nearest matches without checking every stored item. This is <b>approximate nearest-neighbor search</b>: it saves work, but it can miss a true nearest match.</p>
             </div>
           </section>
 
@@ -317,7 +365,13 @@ export function ExplanationPage({ onOpenPlayground, onStartFirstSearch }: { onOp
             <span id="ef-search-explained" className="anchor-alias"/>
             <header className="chapter-heading"><span>04</span><div><p className="section-kicker">Assume the graph already exists</p><h2>Search from coarse layers to fine ones.</h2><p>Upper layers greedily find a promising region. Layer 0 keeps several possible routes alive so one unlucky turn does not end the search.</p></div></header>
             <div className="lesson-block">
-              <h3>Search notation, before the example</h3>
+              <h3>First, watch one complete search</h3>
+              <p>Watch S discover two choices. Step through the small replay once using “best so far” and “to check”; the formal symbols and stopping rule come immediately afterward.</p>
+              <p>The graph, query, and <ParameterLink name="k"/> stay fixed. Only <ParameterLink name="efSearch"/> changes, so you can see why one extra candidate slot matters.</p>
+              <div id="four-dot-search"><EfSearchVisual /></div>
+              {onStartFirstSearch && <aside className="try-panel"><div><span>TRY THE SAME SEARCH</span><h3>Try the four-dot example in Playground</h3><p>Start paused with one candidate slot, then rerun the same target with two. Predict which answer changes and how much extra work it needs.</p></div><button className="button primary desktop-lesson-action" onClick={onStartFirstSearch}>Open guided search →</button><a className="button primary mobile-lesson-action" href="#four-dot-search">Replay inline →</a></aside>}
+
+              <h3 className="lesson-subheading">Search notation and rules</h3>
               <dl className="term-grid search-terms">
                 <div><dt><code>W</code> · best so far</dt><dd>The closest candidates discovered so far. A node stays in W even after its links are explored.</dd></div>
                 <div><dt><code>C</code> · to check</dt><dd>A waiting list of candidates whose links may still reveal something better. Check the nearest one next.</dd></div>
@@ -326,7 +380,7 @@ export function ExplanationPage({ onOpenPlayground, onStartFirstSearch }: { onOp
                 <div><dt>Candidate</dt><dd>A discovered node being considered for admission to both W and C.</dd></div>
                 <div><dt>Expand</dt><dd>Remove the nearest node from C and inspect its links. Expansion does not remove it from W.</dd></div>
               </dl>
-              <p className="term-memory"><b>Remember:</b> W remembers possible answers. C remembers where to look next. <ParameterLink name="efSearch"/> controls W’s room length.</p>
+              <p className="term-memory"><b>Remember:</b> W remembers possible answers. C remembers where to look next. <ParameterLink name="efSearch"/> controls W’s candidate capacity.</p>
 
               <h3 className="lesson-subheading">Step 1: navigate the upper layers</h3>
               <ol className="explanation-steps">
@@ -350,13 +404,10 @@ export function ExplanationPage({ onOpenPlayground, onStartFirstSearch }: { onOp
                   <li><b>Finish:</b> after an upper layer ends, take W’s best node down to the next layer. After L0 ends, return the closest <ParameterLink name="k"/> nodes from W.</li>
                 </ul>
               </div>
-              <p>The interactive example below holds the graph, query, and <ParameterLink name="k"/> fixed. Only <ParameterLink name="efSearch"/> changes, so you can see why one extra W slot matters.</p>
-              <div id="four-dot-search"><EfSearchVisual /></div>
               <p>This stopping rule saves work but can miss an unseen shortcut. <b>Recall</b> measures the share of true nearest matches found. Raising <ParameterLink name="efSearch"/> often improves recall by doing more distance checks, but it cannot repair a badly connected graph.</p>
               <KnowledgeCheck question="Does efSearch change how many results are returned?" choices={['Yes', 'No—that is k']} correct={1} explanation="efSearch changes how broadly layer 0 is explored. k sets the result count."/>
               <a className="algorithm-reference-link" href="#algorithm-knn-search" data-learn-reference onClick={followLearnReference}>Read the search pseudocode →</a>
             </div>
-            <aside className="try-panel"><div><span>TRY THE SAME SEARCH</span><h3>Replay every decision</h3><p>Load the fixed four-dot graph with k = 1 and efSearch = 1, then compare it with efSearch = 2.</p></div><button className="button primary desktop-lesson-action" onClick={onStartFirstSearch}>Open guided search →</button><a className="button primary mobile-lesson-action" href="#four-dot-search">Replay inline →</a></aside>
           </section>
 
           <section id="chapter-insert" className="guide-chapter">
@@ -388,7 +439,7 @@ export function ExplanationPage({ onOpenPlayground, onStartFirstSearch }: { onOp
           </section>
 
           <section id="chapter-delete" className="guide-chapter">
-            <header className="chapter-heading"><span>06</span><div><p className="section-kicker">Removing a vector</p><h2>Delete cheaply, or remove and repair.</h2><p>The original HNSW paper does not define deletion. This visualizer shows the two common strategies: a reversible tombstone and a physical removal with best-effort link repair.</p></div></header>
+            <header className="chapter-heading"><span>06</span><div><p className="section-kicker">Removing a vector</p><h2>Delete cheaply, or remove and repair.</h2><p>The original HNSW paper does not define deletion. This visualizer demonstrates a reversible tombstone and a physical removal with best-effort link repair; production libraries expose different capabilities and semantics.</p></div></header>
             <div className="lesson-block">
               <div className="term-pair"><div id="soft-delete"><code>Soft delete · tombstone</code><p>Mark the node unavailable for results but keep it and every edge for routing. Fast and reversible; memory is reclaimed later by rebuilding or compacting.</p></div><div id="hard-delete"><code>Hard delete · remove + repair</code><p>Remove the node and all of its edges, then offer its former neighbors to one another as replacement links. Reclaims memory but can weaken the graph.</p></div></div>
               <p className="delete-visual-intro">Compare the same starting graph on both sides. The crossed-out node on the left still carries routes. The dashed space on the right marks the removed node; only selected repair links reconnect its former neighbors.</p>
@@ -401,20 +452,39 @@ export function ExplanationPage({ onOpenPlayground, onStartFirstSearch }: { onOp
                 <li><b>Hard: replace entry.</b><span>If it was the entry point, choose the highest surviving node as the new start.</span></li>
               </ol>
               <div className="example-card"><span>PARAMETERS USED</span><p>Delete mode is the only choice specific to deletion. Soft delete has no tuning knobs. Hard repair reuses the <ParameterLink name="neighborRule" label="neighbor selection rule"/> and the <ParameterLink name="Mmax"/> / <ParameterLink name="Mmax0"/> edge caps. Repeated hard repairs are approximate, so periodic rebuilds may still be needed.</p></div>
-              <p className="chapter-takeaway"><b>Practical rule:</b> prefer soft delete when fast, safe updates matter; use hard delete when reclaiming memory now is worth repair cost and possible recall loss.</p>
+              <p className="chapter-takeaway"><b>In this visualizer:</b> soft delete preserves the graph and is reversible; hard delete reclaims the node immediately but its best-effort repair may reduce recall. Check your chosen library’s deletion documentation before applying this model elsewhere.</p>
               <a className="algorithm-reference-link" href="#algorithm-delete" data-learn-reference onClick={followLearnReference}>Read the delete and repair pseudocode →</a>
             </div>
           </section>
 
+          <section id="chapter-update" className="guide-chapter">
+            <header className="chapter-heading"><span>07</span><div><p className="section-kicker">Moving an existing vector</p><h2>An update must repair the node’s neighborhood.</h2><p>Changing a vector moves it in the similarity space. Its old links may no longer make sense, so the index must reconnect it near its new position.</p></div></header>
+            <div className="lesson-block">
+              <div className="term-pair"><div id="update-reinsert"><code>Reinsert · broader search</code><p>Remove the node and its old links, then insert the new vector through a graph search. This usually considers a wider neighborhood and redraws the node’s random highest layer, but it does not guarantee exact nearest neighbors.</p></div><div id="update-in-place"><code>In place · local repair</code><p>Overwrite the vector, keep its current level, and choose replacement links only from its old two-hop neighborhood. This avoids a full graph search but can miss useful routes after a large move.</p></div></div>
+              <p className="stage-visual-intro">Both modes keep the same node identity and label. The difference is how widely they look for replacement neighbors.</p>
+              <UpdateVisual />
+              <h3 className="lesson-subheading">What happens when you move a dot</h3>
+              <ol className="explanation-steps">
+                <li><b>Choose the node.</b><span>Select the stored vector whose values need to change.</span></li>
+                <li><b>Set the new vector.</b><span>Drag the dot or enter new coordinates. Its new position changes which vectors are similar.</span></li>
+                <li><b>Repair its links.</b><span>Reinsert searches the graph broadly. In place searches only around the node’s old neighbors.</span></li>
+                <li><b>Review the replay.</b><span>Step through the trace to see removed links, candidate neighbors, and the new connections.</span></li>
+              </ol>
+              <div className="example-card"><span>COMPARE THE DEMO STRATEGIES</span><h4>Match the repair scope to the size of the change.</h4><p>For a small move, the local pool may still contain useful neighbors and can avoid a broader search. After a large move, that old pool is more likely to miss useful new routes, so the demo’s Reinsert strategy searches more broadly. Neither strategy guarantees exact nearest neighbors.</p></div>
+              <p className="chapter-takeaway"><b>What the picture shows:</b> one possible outcome of the same move. Search and graph quality depend on the current graph, parameters, and insertion history.</p>
+              <a className="algorithm-reference-link" href="#algorithm-update" data-learn-reference onClick={followLearnReference}>Read the update pseudocode →</a>
+            </div>
+          </section>
+
           <section id="parameter-guide" className="guide-chapter control-chapter">
-            <header className="chapter-heading"><span>07</span><div><p className="section-kicker">One reference, linked everywhere</p><h2>Parameter reference.</h2><p>The chapters explain why a setting appears. This section is the single place for exact ranges, trade-offs, and whether a change rebuilds the graph.</p></div></header>
+            <header className="chapter-heading"><span>08</span><div><p className="section-kicker">One reference, linked everywhere</p><h2>Parameter reference.</h2><p>The chapters explain why a setting appears. This section is the single place for exact ranges, trade-offs, and whether a change rebuilds the graph.</p></div></header>
             <div className="control-summary-grid"><div><span>QUERY TIME</span><b>k · efSearch</b><p>Change the next search without rebuilding.</p></div><div><span>BUILD TIME</span><b>M · efConstruction · mL · caps</b><p>Change the graph and trigger a rebuild.</p></div><div><span>DATA & SELECTION</span><b>Dataset · metric · neighbor rule</b><p>Change the example or what links mean.</p></div></div>
             <div className="reference-library">{Object.values(CONTROL_GUIDES).map((guide) => <ControlCard key={guide.id} guide={guide}/>)}</div>
             <p className="ef-source">Algorithm references: <a href="https://arxiv.org/abs/1603.09320">the original HNSW paper</a> and <a href="https://github.com/nmslib/hnswlib/blob/master/ALGO_PARAMS.md">hnswlib’s parameter guide</a>. Deletion is implementation-specific and is not defined by the paper.</p>
           </section>
 
           <section id="algorithm-steps" className="guide-chapter algorithm-chapter">
-            <header className="chapter-heading"><span>08</span><div><p className="section-kicker">The complete reference</p><h2>Read the algorithm one operation at a time.</h2><p>The earlier chapters explain the ideas with pictures. This final section collects the same operations as compact pseudocode, after the symbols and behavior are familiar.</p></div></header>
+            <header className="chapter-heading"><span>09</span><div><p className="section-kicker">The complete reference</p><h2>Read the algorithm one operation at a time.</h2><p>The earlier chapters explain the ideas with pictures. This final section collects the same operations as compact pseudocode, after the symbols and behavior are familiar.</p></div></header>
             <div className="lesson-block">
               <h3>How to read the listings</h3>
               <dl className="term-grid compact-terms algorithm-terms">
@@ -431,7 +501,7 @@ export function ExplanationPage({ onOpenPlayground, onStartFirstSearch }: { onOp
         </div>
       </div>
 
-      <footer className="guide-footer"><span>You now have the whole path: exact scan → graph → layers → search → insert → delete → pseudocode.</span><button className="button secondary desktop-lesson-action" onClick={onOpenPlayground}>Open or resume Playground →</button><a className="button secondary mobile-lesson-action" href="#four-dot-search">Practice the inline search →</a></footer>
+      <footer className="guide-footer"><span>You now have the whole path: exact scan → graph → layers → search → insert → delete → update → pseudocode.</span><button className="button secondary desktop-lesson-action" onClick={onOpenPlayground}>Open or resume Playground →</button><a className="button secondary mobile-lesson-action" href="#four-dot-search">Practice the inline search →</a></footer>
     </div>
   </main>
 }

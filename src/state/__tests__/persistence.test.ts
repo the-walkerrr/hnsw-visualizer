@@ -38,4 +38,9 @@ describe('session persistence', () => {
     const state = { ...initialState(), movingNode: 42 }
     expect(deserializeState(serializeState(state))!.movingNode).toBeNull()
   })
+
+  it('preserves whether the graph contains manual edits', () => {
+    const custom = reducer(initialState(), { type: 'script', ops: [{ t: 'insert', at: [120, 180] }] })
+    expect(deserializeState(serializeState(custom))!.customGraph).toBe(true)
+  })
 })

@@ -45,14 +45,14 @@ export function NodePanel() {
         <button disabled={updateLocked} aria-pressed={state.updateMode === 'in-place'} onClick={() => dispatch({ type: 'setUpdateMode', mode: 'in-place' })}>In place</button>
       </div>
       <p className="hint">{state.updateMode === 'reinsert' ? 'Rebuilds this dot’s links and redraws its random highest layer. Safer, with more work.' : 'Replaces the vector and repairs nearby links. Faster, but repeated updates can weaken the graph.'}</p>
-      <a className="control-deep-link" href="/learn#algorithm-update" data-learn-reference onClick={followLearnReference}>How updates work <span aria-hidden="true">↗</span></a>
+      <a className="control-deep-link" href="/learn#chapter-update" data-learn-reference onClick={followLearnReference}>Compare update strategies <span aria-hidden="true">↗</span></a>
     </div>
   )
 
   if (!node) {
     return (
       <div className="pane-scroll">
-        <div className="panel-intro"><p className="section-kicker">Update</p><h2>Change a dot.</h2><p>Choose how updates behave, then select a dot to move, restore, or delete.</p></div>
+        <div className="panel-intro"><p className="section-kicker">Update</p><h2>Change a dot.</h2><p>Select a dot to inspect it. You can then move it, restore it if deleted, or delete it. The strategy below controls how a move repairs its links.</p></div>
         {updateStrategy}
         {picker}
         <div className="empty"><span className="empty-glyph">◎</span><b>No node selected</b><span>Node level, neighbors, distance, and update actions will appear here.</span></div>
@@ -63,7 +63,7 @@ export function NodePanel() {
   const q = state.trace?.steps[state.step]?.vis.query
   return (
     <div className="pane-scroll">
-      <div className="panel-intro"><p className="section-kicker">Update</p><h2>Change a dot.</h2><p>Choose a dot and an update strategy before moving or deleting it.</p></div>
+      <div className="panel-intro"><p className="section-kicker">Update</p><h2>Change a dot.</h2><p>Inspect this dot, then move, restore, or delete it. The strategy below applies only when you move it.</p></div>
       {updateStrategy}
       {picker}
       <div className="section-title">Node {node.label}</div>

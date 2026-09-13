@@ -9,14 +9,15 @@ import {
   DispatchCtx,
   StateCtx,
   initialState,
-  playgroundEntryActions,
   reducer,
   type AppState,
   type RightTab,
   type ScriptOp,
 } from '../../state/store'
 import { CanvasToolbar } from '../CanvasToolbar'
+import { BarChart, LineChart } from '../Charts'
 import { Explainer } from '../Explainer'
+import { slotLabel } from '../formatCount'
 import { OperationNotice } from '../OperationNotice'
 import { ExplanationPage } from '../ExplanationPage'
 import { GraphCanvas } from '../GraphCanvas'
@@ -28,6 +29,8 @@ import { LabPanel } from '../panels/LabPanel'
 import { MetricsPanel } from '../panels/MetricsPanel'
 import { NodePanel } from '../panels/NodePanel'
 import { ParamsPanel } from '../panels/ParamsPanel'
+import { numericFeedbackMatches } from '../panels/numericFeedback'
+import { selectionRuleSummary } from '../panels/selectionRuleSummary'
 import { QueuesPanel } from '../panels/QueuesPanel'
 
 /** Render a component against an exact app state. renderToStaticMarkup runs the
@@ -95,7 +98,7 @@ describe('render smoke', () => {
     const html = renderToStaticMarkup(<StoreLess />)
     expect(html).toContain('HNSW Explorer')
     expect(html).toContain('Learn')
-    expect(html).toContain('Open playground')
+    expect(html).toContain('Full Playground')
     expect(html).toContain('Read the mobile-friendly guide')
   })
 
@@ -154,7 +157,7 @@ describe('render smoke', () => {
   })
 
   it('presents the algorithm as a problem-first sequence before the parameter reference', () => {
-    const html = render(initialState(), <ExplanationPage onOpenPlayground={() => {}} onStartFirstSearch={() => {}} />)
+    const html = render(initialState(), <ExplanationPage onOpenPlayground={() => {}} />)
     const headings = [
       'Find similar items without checking everything',
       'Connect similar vectors into neighborhoods',
@@ -162,22 +165,26 @@ describe('render smoke', () => {
       'Search from coarse layers to fine ones',
       'An insert searches first, then makes links',
       'Delete cheaply, or remove and repair',
+      'An update must repair the node’s neighborhood',
       'Parameter reference',
       'Read the algorithm one operation at a time',
     ]
     for (let i = 1; i < headings.length; i++) expect(html.indexOf(`<h2>${headings[i - 1]}`)).toBeLessThan(html.indexOf(`<h2>${headings[i]}`))
     expect(html).toContain('Brute force is simple and exact')
-    expect(html.match(/<figure/g)?.length).toBeGreaterThanOrEqual(6)
+    expect(html.match(/<figure/g)?.length).toBeGreaterThanOrEqual(7)
     expect(html).toContain('class="neighbor-choice-visual"')
     expect(html).toContain('Choose two useful directions')
     expect(html).toContain('Soft delete keeps the tombstoned node and all four spokes')
     expect(html).toContain('the two green links are selected best-effort repairs')
+    expect(html).toContain('Same move, two ways to choose replacement links')
+    expect(html).toContain('links toward nearby candidates found by the broad search')
+    expect(html).toContain('links may reach back to the old region')
     const visibleText = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ')
     expect(visibleText).not.toMatch(/\b(?:Params|Code|Metrics) tab\b/)
   })
 
   it('keeps algorithm explanations in Learn and points the retired playground panel there', () => {
-    const learn = render(initialState(), <ExplanationPage onOpenPlayground={() => {}} onStartFirstSearch={() => {}} />)
+    const learn = render(initialState(), <ExplanationPage onOpenPlayground={() => {}} />)
     const retiredPanel = render(initialState(), <CodePanel />)
     expect(learn).toContain('id="algorithm-steps"')
     for (const id of ['knn-search', 'search-layer', 'insert', 'select-neighbors', 'delete', 'update']) {
@@ -195,9 +202,22 @@ describe('render smoke', () => {
     expect(retiredPanel).not.toContain('SEARCH-LAYER(q, ep, ef, lc)')
   })
 
-  it('defines search notation in plain language before the interactive search example', () => {
-    const html = render(initialState(), <ExplanationPage onOpenPlayground={() => {}} onStartFirstSearch={() => {}} />)
-    expect(html).toContain('Search notation, before the example')
+  it('explains update strategies in Learn and links the Update panel to them', () => {
+    const learn = render(initialState(), <ExplanationPage onOpenPlayground={() => {}} />)
+    const panel = render(initialState(), <NodePanel />)
+    expect(learn).toContain('id="chapter-update"')
+    expect(learn).toContain('id="update-reinsert"')
+    expect(learn).toContain('id="update-in-place"')
+    expect(learn).toContain('candidate pool comes from the old one- and two-hop neighborhood')
+    expect(learn).toContain('Read the update pseudocode')
+    expect(panel).toContain('Select a dot to inspect it')
+    expect(panel).toContain('href="/learn#chapter-update"')
+    expect(panel).toContain('Compare update strategies')
+  })
+
+  it('shows the complete four-dot search before introducing formal queue rules', () => {
+    const html = render(initialState(), <ExplanationPage onOpenPlayground={() => {}} />)
+    expect(html).toContain('First, watch one complete search')
     expect(html).toContain('href="/learn#control-ef-search"')
     expect(html).toContain('data-learn-reference="true"')
     expect(html).toContain('<code>W</code> · best so far')
@@ -209,12 +229,12 @@ describe('render smoke', () => {
     expect(html).toContain('add it to both C and W when W has an empty slot')
     expect(html).toContain('If C is empty, or its nearest node is farther from q than W’s farthest node, end this layer')
     expect(html).toContain('After L0 ends, return the closest')
-    expect(html.indexOf('Search notation, before the example')).toBeLessThan(html.indexOf('id="four-dot-search"'))
-    expect(html.indexOf('id="c-admission-rule"')).toBeLessThan(html.indexOf('id="four-dot-search"'))
+    expect(html.indexOf('id="four-dot-search"')).toBeLessThan(html.indexOf('Search notation and rules'))
+    expect(html.indexOf('id="four-dot-search"')).toBeLessThan(html.indexOf('id="c-admission-rule"'))
   })
 
   it('explains per-layer W capacities and their purpose in Learn and live queues', () => {
-    const learn = render(initialState(), <ExplanationPage onOpenPlayground={() => {}} onStartFirstSearch={() => {}} />)
+    const learn = render(initialState(), <ExplanationPage onOpenPlayground={() => {}} />)
     expect(learn).toContain('id="w-per-layer"')
     expect(learn).toContain('Upper layers · W has 1 slot')
     expect(learn).toContain('Layer 0 · W uses the larger of')
@@ -233,13 +253,32 @@ describe('render smoke', () => {
     expect(render({ ...insert, step: index }, <QueuesPanel />)).not.toContain('Why these sizes?')
   })
 
-  it('gives every adjustable control a Learn anchor and input-specific explanations', () => {
-    const learn = render(initialState(), <ExplanationPage onOpenPlayground={() => {}} onStartFirstSearch={() => {}} />)
+  it('shows the two-hop pool instead of W/C during an in-place update', () => {
+    const state = script(seededState(), [
+      { t: 'updateNearest', at: [232, 172], to: [760, 470], mode: 'in-place' },
+      { t: 'seek', to: 'end' },
+    ])
+    const html = render(state, <QueuesPanel />)
+    expect(html).toContain('Inside the local repair')
+    expect(html).toContain('Candidate pool')
+    expect(html).toContain('Selected neighbors')
+    expect(html).toContain('Rejected / not selected')
+    expect(html).toContain('href="/learn#update-in-place"')
+    expect(html).not.toContain('Best so far')
+    expect(html).not.toContain('To check')
+  })
+
+  it('links every adjustable control to a Learn anchor with a concrete example', () => {
+    const learn = render(initialState(), <ExplanationPage onOpenPlayground={() => {}} />)
     const panels = `${render(initialState(), <BuildPanel />)}${render(initialState(), <ParamsPanel />)}`
     for (const guide of Object.values(CONTROL_GUIDES)) {
       expect(learn, guide.label).toContain(`id="${guide.id}"`)
+      expect(learn, guide.label).toContain(guide.example)
       expect(panels, guide.label).toContain(`href="/learn#${guide.id}"`)
+      expect(panels, guide.label).toContain(`Learn how ${guide.label} works`)
     }
+    expect(panels).not.toContain('What does this change?')
+    expect(panels).not.toContain('control-help-body')
     expect(learn).not.toContain('Decrease / off')
     expect(learn).not.toContain('Increase / on')
     expect(learn).toContain('Input: 2–24')
@@ -254,9 +293,8 @@ describe('render smoke', () => {
     expect(learn).toContain('See how efSearch controls a query')
     expect(panels).not.toContain('Decrease / off')
     expect(panels).not.toContain('Increase / on')
-    expect(panels).toContain('Input: 2–24')
-    expect(panels).toContain('Euclidean (L2)')
-    expect(panels).toContain('Two moons')
+    expect(panels).not.toContain('Input: 2–24')
+    expect(panels).not.toContain('Two interleaved curves that make nearby-looking dots harder to connect correctly.')
   })
 
   it('groups search and insertion controls with their actions', () => {
@@ -277,26 +315,66 @@ describe('render smoke', () => {
     expect(render(inserted, <ParamsPanel />)).toContain('id="count" type="range" min="0" max="400" step="1" value="1"')
   })
 
-  it('keeps ordinary playground entry empty and seeds only the guided first search', () => {
-    const empty = initialState()
-    const direct = playgroundEntryActions(empty, 'empty').reduce(reducer, empty)
-    expect(direct.graph.nodes.size).toBe(0)
-    expect(direct.tool).toBe('insert')
-
-    const guided = playgroundEntryActions(empty, 'guided').reduce(reducer, empty)
-    expect(guided.graph.nodes.size).toBe(4)
-    expect(guided.trace?.op).toBe('search')
-    expect(guided.step).toBe(0)
-    expect(guided.playing).toBe(false)
-    expect(guided.granularity).toBe('fine')
-    expect(guided.tool).toBe('search')
-    expect(guided.rightTab).toBe('queues')
+  it('makes the required canvas Search tool explicit when the Insert tool is active', () => {
+    const html = render({ ...seededState(), tool: 'insert' }, <BuildPanel />)
+    expect(html).toContain('Current canvas tool: Insert')
+    expect(html).toContain('Use Search tool')
+    expect(html).toContain('then click the graph to place your target')
   })
 
-  it('labels the Learn-page seeded and empty playground paths distinctly', () => {
+  it('offers a separate guided four-dot exercise without replacing general resume', () => {
     const html = render(initialState(), <ExplanationPage onOpenPlayground={() => {}} onStartFirstSearch={() => {}} />)
+    expect(html).toContain('Try the four-dot example in Playground')
     expect(html).toContain('Open guided search')
     expect(html).toContain('Open or resume Playground')
+  })
+
+  it('bridges a named item to vectors, a query, and a returned item before graph construction', () => {
+    const html = render(initialState(), <ExplanationPage onOpenPlayground={() => {}} />)
+    expect(html).toContain('HNSW stands for Hierarchical Navigable Small World')
+    expect(html).toContain('approximate nearest-neighbor search')
+    expect(html).toContain('“Quiet Piano”')
+    expect(html).toContain('query [0.8, 0.2]')
+    expect(html.indexOf('“Quiet Piano”')).toBeLessThan(html.indexOf('id="chapter-connect"'))
+  })
+
+  it('uses mobile-friendly homepage actions and discloses the full playground width requirement', () => {
+    const html = renderToStaticMarkup(<StoreLess />)
+    expect(html).toContain('Try the interactive search')
+    expect(html).toContain('Full Playground · desktop, 900 px or wider')
+  })
+
+  it('uses correct singular grammar in the one-slot inline replay', () => {
+    const html = render(initialState(), <ExplanationPage onOpenPlayground={() => {}} />)
+    expect(html).toContain('1 distance check')
+    expect(slotLabel(1)).toBe('1 slot')
+    expect(slotLabel(2)).toBe('2 slots')
+    expect(html).not.toContain('1 distance checks')
+    expect(html).not.toContain('within 1 slots')
+  })
+
+  it('discloses every setting coupled to the direct M control', () => {
+    const html = render(initialState(), <ParamsPanel />)
+    expect(html).toContain('also resets both degree caps and mL')
+    expect(html).toContain('caps 5 and 10; mL 0.62')
+  })
+
+  it('keeps numeric correction feedback only while its value and bounds are current', () => {
+    const feedback = { value: 2, min: 2, max: 24, step: 1 }
+    expect(numericFeedbackMatches(feedback, 2, 2, 24, 1)).toBe(true)
+    expect(numericFeedbackMatches(feedback, 5, 2, 24, 1)).toBe(false)
+    expect(numericFeedbackMatches(feedback, 2, 5, 32, 1)).toBe(false)
+  })
+
+  it('reports selection-rule work at enough precision to support its conclusion', () => {
+    expect(selectionRuleSummary(
+      { rule: 'heuristic', recall: 1, distCalls: 30.96 },
+      { rule: 'simple', recall: 1, distCalls: 31.04 },
+    )).toContain('31.0 checks/query')
+    expect(selectionRuleSummary(
+      { rule: 'heuristic', recall: 1, distCalls: 31.01 },
+      { rule: 'simple', recall: 1, distCalls: 31.04 },
+    )).toContain('tie at the displayed precision')
   })
 
   it.each(SCENARIOS)('canvas + transport + explainer render: %s', (_name, state) => {
@@ -316,6 +394,29 @@ describe('render smoke', () => {
       const html = render({ ...state, rightTab: tab }, make())
       expect(html.length, tab).toBeGreaterThan(0)
     }
+  })
+
+  it('explains every experiment setup and renders visible chart axis titles', () => {
+    const lab = render(seededState(), <LabPanel />)
+    expect(lab).toContain('Change one decision. Measure the trade-off.')
+    expect(lab).toContain('Does more search effort improve recall?')
+    expect(lab).toContain('Do more connections buy better searches?')
+    expect(lab).toContain('Nearest links or diverse directions?')
+    expect(lab.match(/<dt>Changes<\/dt>/g)).toHaveLength(3)
+    expect(lab.match(/<dt>Stays fixed<\/dt>/g)).toHaveLength(3)
+    expect(lab.match(/<dt>Measure<\/dt>/g)).toHaveLength(3)
+
+    const line = render(initialState(), <LineChart title="Example line" xTitle="Input units" yTitle="Output units" points={[{ x: 1, y: 2 }, { x: 2, y: 3 }]} />)
+    expect(line).toContain('data-axis="x"')
+    expect(line).toContain('>Input units</text>')
+    expect(line).toContain('data-axis="y"')
+    expect(line).toContain('>Output units</text>')
+
+    const bars = render(initialState(), <BarChart title="Example bars" labelTitle="Method" valueTitle="Checks / query" horizontal bars={[{ label: 'A', value: 2 }, { label: 'B', value: 3 }]} />)
+    expect(bars).toContain('data-axis="x"')
+    expect(bars).toContain('>Checks / query</text>')
+    expect(bars).toContain('data-axis="y"')
+    expect(bars).toContain('>Method</text>')
   })
 
   it('every step of an insert trace renders', () => {
@@ -362,7 +463,7 @@ describe('render smoke', () => {
     expect(html).toContain('aria-label="Update strategy"')
     expect(html).toContain('Reinsert')
     expect(html).toContain('In place')
-    expect(html).toContain('href="/learn#algorithm-update"')
+    expect(html).toContain('href="/learn#chapter-update"')
     expect(html).toContain('id="node-x"')
     expect(html).toContain('id="node-y"')
     expect(html).toContain('Move node')

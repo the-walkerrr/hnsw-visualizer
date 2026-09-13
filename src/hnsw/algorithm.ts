@@ -393,7 +393,7 @@ class Run {
           'h9',
           `Prune ${this.nm(e.id)} — ${this.nm(blocker)} covers it`,
           `${this.nm(e.id)} sits ${f(e.dist)} from ${this.nm(baseId)} but only ${f(blockerDist)} from ${this.nm(blocker)}, which is already a neighbour. ` +
-            `An edge there would be redundant: a search can reach ${this.nm(e.id)} in one extra hop via ${this.nm(blocker)}. Spending the edge budget on a new direction instead is what makes the graph navigable.`,
+            `The heuristic therefore treats this direct link as directionally redundant and saves the edge budget for another direction. This distance comparison does not guarantee an existing edge or route through ${this.nm(blocker)}.`,
           'minor',
           { considering: e.id, blocker },
         )
@@ -409,7 +409,7 @@ class Run {
         this.emit(
           'h11',
           `Refill with pruned candidate ${this.nm(c.id)}`,
-          `The heuristic ran out of "new direction" candidates before filling M = ${M} slots. keepPrunedConnections spends the leftover budget on the closest rejects rather than leaving the node under-connected — an under-connected node is a dead end for every future search.`,
+          `The heuristic ran out of "new direction" candidates before filling M = ${M} slots. keepPrunedConnections spends the leftover budget on the closest rejects rather than leaving the node with fewer routes for future searches.`,
           'minor',
         )
       }
@@ -465,7 +465,7 @@ class Run {
       this.emit(
         lines.done,
         `Trimmed ${this.nm(e)}: dropped ${this.nms(dropped)}`,
-        `Edges are undirected here, so ${this.nms(dropped)} lose this connection too. ` +
+        `Edges are undirected here, so ${dropped.length === 1 ? `Dot ${this.nm(dropped[0])} loses` : `Dots ${this.nms(dropped)} lose`} this connection too. ` +
           `This is the one place where inserting a node can make an *existing* node's neighbourhood worse — and why insertion order affects the final graph.`,
         'major',
         { focus: e, removedEdges: dropped.map((x) => [e, x] as [NodeId, NodeId]) },
@@ -662,8 +662,8 @@ class Run {
     this.emit(
       'd2',
       `Tombstone ${n.label}`,
-      `${n.label} keeps every edge it had and searches still walk through it — only the result filter changes. This is what production libraries (hnswlib, FAISS-HNSW, Qdrant, Weaviate) do by default, because it is O(1) and cannot break the graph. ` +
-        `The price: the node still costs distance computations, still occupies slots in W, and the wasted space is only reclaimed by a rebuild or compaction.` +
+      `In this visualizer, ${n.label} keeps every edge it had and searches can still walk through it, while the result filter excludes it from returned matches. HNSW implementations differ in whether deletion is supported and how deleted candidates are handled; consult the documentation for the library you use. ` +
+        `Here, the node still costs distance computations and may occupy candidate-list space until the graph is rebuilt.` +
         (this.graph.entry === id
           ? ` Note that ${n.label} is the entry point — a deleted entry point is fine, it is only a router, but every search now begins at a node that can never be an answer.`
           : ''),

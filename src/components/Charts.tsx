@@ -10,7 +10,7 @@ interface Frame {
   pad: { t: number; r: number; b: number; l: number }
 }
 
-const FRAME: Frame = { w: 320, h: 128, pad: { t: 8, r: 10, b: 20, l: 34 } }
+const FRAME: Frame = { w: 340, h: 166, pad: { t: 14, r: 12, b: 40, l: 54 } }
 
 function ChartShell({
   title,
@@ -63,6 +63,7 @@ export function LineChart({
   color = 'var(--blue)',
   rule,
   xScale = 'linear',
+  highlightX,
   xTitle = 'Setting', yTitle = 'Measurement',
 }: {
   title: string
@@ -77,6 +78,8 @@ export function LineChart({
   color?: string
   /** A reference threshold drawn as a dashed line, e.g. the cost of an exact scan. */
   rule?: { at: number; label: string }
+  /** Outline one tested value, normally the app's current setting. */
+  highlightX?: number
   /** 'ordinal' spaces the points evenly — right when x is a doubling sequence,
    *  where a linear axis crushes the low end into an unreadable smear. */
   xScale?: 'linear' | 'ordinal'
@@ -120,7 +123,9 @@ export function LineChart({
         </table>
       }
     >
-      <svg viewBox={`0 0 ${w} ${h}`} onMouseLeave={() => setHi(null)}>
+      <svg viewBox={`0 0 ${w} ${h}`} role="img" aria-label={`${title}. Horizontal axis: ${xTitle}. Vertical axis: ${yTitle}.`} onMouseLeave={() => setHi(null)}>
+        <title>{title}</title>
+        <desc>{yTitle} plotted against {xTitle}. {highlightX === undefined ? '' : `${highlightX} is the current setting.`}</desc>
         <g className="grid">
           {Array.from({ length: yTicks + 1 }, (_, i) => {
             const v = (top * i) / yTicks
@@ -128,6 +133,8 @@ export function LineChart({
           })}
         </g>
         <g className="axis">
+          <line className="axis-line" x1={pad.l} y1={pad.t} x2={pad.l} y2={h - pad.b} />
+          <line className="axis-line" x1={pad.l} y1={h - pad.b} x2={w - pad.r} y2={h - pad.b} />
           {Array.from({ length: yTicks + 1 }, (_, i) => {
             const v = (top * i) / yTicks
             return (
@@ -143,6 +150,8 @@ export function LineChart({
               </text>
             ) : null,
           )}
+          <text className="axis-title" data-axis="x" x={(pad.l + w - pad.r) / 2} y={h - 4} textAnchor="middle">{xTitle}</text>
+          <text className="axis-title" data-axis="y" x={-(pad.t + h - pad.b) / 2} y={11} textAnchor="middle" transform="rotate(-90)">{yTitle}</text>
         </g>
         {rule && rule.at <= top && (
           <g>
@@ -162,15 +171,17 @@ export function LineChart({
         )}
         <path d={path} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" />
         {points.map((p, i) => (
-          <circle
-            key={p.x}
-            cx={cx(i)}
-            cy={py(p.y)}
-            r={hi === i ? 4.5 : 2.6}
-            fill={color}
-            stroke="var(--surface-1)"
-            strokeWidth={2}
-          />
+          <g key={p.x}>
+            {p.x === highlightX && <circle className="current-setting-ring" cx={cx(i)} cy={py(p.y)} r={7} fill="none" stroke={color} strokeWidth={1.5} />}
+            <circle
+              cx={cx(i)}
+              cy={py(p.y)}
+              r={hi === i ? 4.5 : 3}
+              fill={color}
+              stroke="var(--surface-1)"
+              strokeWidth={2}
+            />
+          </g>
         ))}
         {points.map((p, i) => (
           <rect
@@ -235,30 +246,42 @@ export function BarChart({
   const max = Math.max(...bars.map((b) => b.value), 1)
 
   if (horizontal) {
-    const rowH = 22
-    const h = bars.length * rowH + 6
-    const w = 320
-    const labelW = 64
+    const rowH = 25
+    const plotTop = 18
+    const h = bars.length * rowH + 58
+    const w = 340
+    const labelW = 76
+    const plotRight = w - 54
+    const axisY = plotTop + bars.length * rowH + 2
     return (
       <ChartShell title={title} note={note} table={<BarTable bars={bars} format={format} labelTitle={labelTitle} valueTitle={valueTitle} />}>
-        <svg viewBox={`0 0 ${w} ${h}`} onMouseLeave={() => setHi(null)}>
+        <svg viewBox={`0 0 ${w} ${h}`} role="img" aria-label={`${title}. Categories: ${labelTitle}. Horizontal axis: ${valueTitle}.`} onMouseLeave={() => setHi(null)}>
+          <title>{title}</title>
+          <desc>{valueTitle} compared across {labelTitle.toLowerCase()} categories.</desc>
+          <g className="axis">
+            <text className="axis-title" data-axis="y" x={labelW - 7} y={10} textAnchor="end">{labelTitle}</text>
+            <line className="axis-line" x1={labelW} y1={axisY} x2={plotRight} y2={axisY} />
+            <text x={labelW} y={axisY + 12} textAnchor="middle">0</text>
+            <text x={plotRight} y={axisY + 12} textAnchor="end">{format(max)}</text>
+            <text className="axis-title" data-axis="x" x={(labelW + plotRight) / 2} y={h - 3} textAnchor="middle">{valueTitle}</text>
+          </g>
           {bars.map((b, i) => {
-            const len = (b.value / max) * (w - labelW - 52)
+            const len = (b.value / max) * (plotRight - labelW)
             return (
               <g key={b.label} onMouseEnter={() => setHi(i)}>
-                <text x={labelW - 6} y={i * rowH + 15} textAnchor="end" className="mark-label">
+                <text x={labelW - 7} y={plotTop + i * rowH + 15} textAnchor="end" className="mark-label">
                   {b.label}
                 </text>
                 <rect
                   x={labelW}
-                  y={i * rowH + 5}
+                  y={plotTop + i * rowH + 5}
                   width={Math.max(len, 1.5)}
-                  height={12}
-                  rx={4}
+                  height={13}
+                  rx={3}
                   fill={b.color ?? color}
                   opacity={hi === null || hi === i ? 1 : 0.55}
                 />
-                <text x={labelW + len + 6} y={i * rowH + 15} className="mark-label">
+                <text x={labelW + len + 6} y={plotTop + i * rowH + 15} className="mark-label value-label">
                   {format(b.value)}
                 </text>
               </g>
@@ -274,17 +297,23 @@ export function BarChart({
   const bw = Math.max(Math.min(slot - 4, 26), 3)
   return (
     <ChartShell title={title} note={note} table={<BarTable bars={bars} format={format} labelTitle={labelTitle} valueTitle={valueTitle} />}>
-      <svg viewBox={`0 0 ${w} ${h}`} onMouseLeave={() => setHi(null)}>
+      <svg viewBox={`0 0 ${w} ${h}`} role="img" aria-label={`${title}. Horizontal axis: ${labelTitle}. Vertical axis: ${valueTitle}.`} onMouseLeave={() => setHi(null)}>
+        <title>{title}</title>
+        <desc>{valueTitle} compared across {labelTitle.toLowerCase()} categories.</desc>
         <g className="grid">
           <line x1={pad.l} y1={h - pad.b} x2={w - pad.r} y2={h - pad.b} />
         </g>
         <g className="axis">
+          <line className="axis-line" x1={pad.l} y1={pad.t} x2={pad.l} y2={h - pad.b} />
+          <line className="axis-line" x1={pad.l} y1={h - pad.b} x2={w - pad.r} y2={h - pad.b} />
           <text x={pad.l - 5} y={pad.t + 6} textAnchor="end">
             {format(max)}
           </text>
           <text x={pad.l - 5} y={h - pad.b + 3} textAnchor="end">
             0
           </text>
+          <text className="axis-title" data-axis="x" x={(pad.l + w - pad.r) / 2} y={h - 4} textAnchor="middle">{labelTitle}</text>
+          <text className="axis-title" data-axis="y" x={-(pad.t + h - pad.b) / 2} y={11} textAnchor="middle" transform="rotate(-90)">{valueTitle}</text>
         </g>
         {bars.map((b, i) => {
           const bh = (b.value / max) * (h - pad.t - pad.b)

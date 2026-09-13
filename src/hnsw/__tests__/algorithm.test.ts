@@ -305,6 +305,33 @@ describe('connectivity — the property that explains the heuristic', () => {
 })
 
 describe('decision narration', () => {
+  it('explains heuristic pruning as a distance test rather than an existing route', () => {
+    const { graph } = build(80, 'clusters')
+    const trace = runInsert(graph, params, [500, 320]).trace
+    const pruned = trace.steps.find((step) => step.line === 'h9')
+    expect(pruned).toBeDefined()
+    expect(pruned!.detail).toContain('does not guarantee an existing edge or route')
+    expect(pruned!.detail).not.toContain('can reach')
+  })
+
+  it('describes soft deletion as this demo behavior without naming unrelated libraries', () => {
+    const { graph } = build(40)
+    const id = graph.entry!
+    const trace = runSoftDelete(graph, params, id).trace
+    const detail = trace.steps.find((step) => step.line === 'd2')!.detail
+    expect(detail).toContain('In this visualizer')
+    expect(detail).toContain('implementations differ')
+    expect(detail).not.toMatch(/FAISS|Qdrant|Weaviate|hnswlib/)
+  })
+
+  it('uses singular wording when trimming one bidirectional edge', () => {
+    const { graph } = build(80, 'clusters')
+    const trace = runInsert(graph, params, [500, 320]).trace
+    const single = trace.steps.find((step) => step.line === 'i13' && step.vis.removedEdges.length === 1)
+    expect(single).toBeDefined()
+    expect(single!.detail).toMatch(/Dot .+ loses this connection too/)
+  })
+
   it('distinguishes insertion connection results from query descent even with one slot', () => {
     const p = { ...params, efConstruction: 1 }
     let graph = runInsert(emptyGraph(), p, [100, 100], { level: 1 }).graph

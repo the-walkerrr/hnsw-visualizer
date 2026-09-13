@@ -25,16 +25,17 @@ export function BuildPanel() {
   const script = useScript()
   const { k, params } = state
   const vectorCount = liveNodes(state.graph).length
+  const toolLabel = state.tool === 'search' ? 'Search' : state.tool === 'insert' ? 'Insert' : 'Update'
   const randomPoint = () => { const rng = makeRng((Date.now() ^ state.graph.nextSeq) >>> 0); return [40 + rng() * (WORLD.width - 80), 40 + rng() * (WORLD.height - 80)] as const }
 
   return <fieldset className="pane-scroll panel-fields" disabled={editsLocked(state)}>
-    <div className="panel-intro"><p className="section-kicker">Search</p><h2>Find the closest dots.</h2><p>Choose the result count and search effort, then place a target.</p></div>
+    <div className="panel-intro"><p className="section-kicker">Search</p><h2>Find the closest dots.</h2><p>Choose the result count and search effort. Select the Search tool above the graph, then click the graph to place your target.</p></div>
     {!vectorCount && <div className="note"><p>Add dots before searching.</p><button className="button secondary compact" onClick={() => dispatch({ type: 'setTool', tool: 'insert' })}>Open Insert →</button></div>}
+    {!!vectorCount && <div className="note canvas-tool-status"><p>Current canvas tool: {toolLabel}</p>{state.tool !== 'search' && <button className="button secondary compact" onClick={() => dispatch({ type: 'setTool', tool: 'search' })}>Use Search tool</button>}</div>}
     <RangeField id="k" label="Results requested (k)" value={k} min={1} max={20} hint="How many close matches do you want?" guide="k" onChange={(value) => dispatch({ type: 'setK', k: value })}/>
     <RangeField id="param-efs" label="Search effort (efSearch)" value={params.efSearch} min={1} max={200} hint="More possible matches in play. More work, often better answers." guide="efSearch" onChange={(efSearch) => dispatch({ type: 'setParams', patch: { efSearch } })}/>
     <button className="button primary run-search" disabled={!vectorCount} onClick={() => script([{ t: 'tool', tool: 'search' }, { t: 'search', at: [...randomPoint()] }])}>Choose a new target <span aria-hidden="true">→</span></button>
     {state.lastSearch && <button className="button secondary" onClick={() => dispatch({ type: 'rerunSearch' })}>Rerun this target</button>}
-    <button className="advanced-link" onClick={() => dispatch({ type: 'startGuided' })}>Load the four-dot lesson (replaces this example)</button>
     <p className="search-next">{vectorCount ? 'Then press Play below the graph to watch it work.' : 'Open Insert to create or load dots.'}</p>
     {k > vectorCount && vectorCount > 0 && <p className="note" role="status">You requested {k} matches, but only {vectorCount} live {vectorCount === 1 ? 'dot is' : 'dots are'} available. At most {vectorCount} can be returned.</p>}
   </fieldset>

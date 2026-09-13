@@ -14,10 +14,24 @@ describe('initial state', () => {
     expect(s.graph.entry).toBeNull()
     expect(s.trace).toBeNull()
     expect(s.tool).toBe('insert')
+    expect(s.customGraph).toBe(false)
   })
 })
 
 describe('operations through the reducer', () => {
+  it('opens the fixed four-dot exercise without changing application defaults', () => {
+    const defaults = initialState()
+    const guided = reducer(defaults, { type: 'startGuided' })
+    expect(guided.graph.nodes.size).toBe(4)
+    expect(guided.params.efSearch).toBe(1)
+    expect(guided.k).toBe(1)
+    expect(guided.tool).toBe('search')
+    expect(guided.rightTab).toBe('queues')
+    expect(guided.trace?.op).toBe('search')
+    expect(guided.step).toBe(0)
+    expect(guided.playing).toBe(false)
+    expect(initialState().params).toEqual(defaults.params)
+  })
   it('a search produces a trace with a result and does not change the graph', () => {
     const s = seededState()
     const after = script(s, [{ t: 'search', at: [500, 320] }])
@@ -33,6 +47,7 @@ describe('operations through the reducer', () => {
     const after = script(s, [{ t: 'insert', at: [500, 320] }])
     expect(after.graph.nodes.size).toBe(1)
     expect(after.graph.entry).not.toBeNull()
+    expect(after.customGraph).toBe(true)
     const steps = after.trace!.steps
     expect(steps.length).toBeGreaterThan(1)
     // Snapshots must be independent copies, not aliases of the live graph.
@@ -56,6 +71,7 @@ describe('operations through the reducer', () => {
     const after = reducer(s, { type: 'deleteNode', id, mode: 'hard' })
     expect(after.graph.nodes.has(id)).toBe(false)
     expect(after.selected).toBeNull()
+    expect(after.customGraph).toBe(true)
   })
 
   it('moving a node keeps the count and records an update trace', () => {
@@ -65,8 +81,20 @@ describe('operations through the reducer', () => {
     expect(after.graph.nodes.size).toBe(s.graph.nodes.size)
     expect(after.graph.nodes.get(id)!.vec).toEqual([640, 500])
     expect(after.trace?.op).toBe('update-reinsert')
+    expect(after.customGraph).toBe(true)
     expect(after.step).toBe(after.trace!.steps.length - 1)
     expect(after.trace!.steps[after.step].graph.nodes.get(id)!.vec).toEqual([640, 500])
+  })
+
+  it('opens Live queues for both update strategies', () => {
+    const seeded = seededState()
+    const id = [...seeded.graph.nodes.keys()][10]
+    for (const mode of ['reinsert', 'in-place'] as const) {
+      const state = { ...seeded, updateMode: mode, rightTab: 'metrics' as const }
+      const after = reducer(state, { type: 'moveNode', id, to: [640, 500] })
+      expect(after.trace?.op).toBe(`update-${mode}`)
+      expect(after.rightTab).toBe('queues')
+    }
   })
 
   it('a structural parameter change rebuilds over the same vectors in the same order', () => {
@@ -76,6 +104,15 @@ describe('operations through the reducer', () => {
     const now = [...after.graph.nodes.values()].sort((a, b) => a.seq - b.seq).map((n) => n.vec)
     expect(now).toEqual(before)
     expect(graphStats(after.graph).edges).toBeGreaterThan(graphStats(s.graph).edges)
+  })
+
+  it('marks generated presets as replaceable and manual edits as custom', () => {
+    const generated = seededState()
+    expect(generated.customGraph).toBe(false)
+    const edited = script(generated, [{ t: 'insert', at: [500, 320] }, { t: 'seek', to: 'end' }])
+    expect(edited.customGraph).toBe(true)
+    const replaced = script(edited, [{ t: 'preset', id: 'ring', n: 24, seed: 7 }])
+    expect(replaced.customGraph).toBe(false)
   })
 
   it('a query-time parameter change does not touch the graph', () => {
@@ -128,6 +165,24 @@ describe('playback', () => {
 })
 
 describe('lesson scripts', () => {
+  it('describes heuristic pruning without inventing a guaranteed graph route', () => {
+    const prose = LESSONS.flatMap((lesson) => lesson.steps).flatMap((step) => step.blocks)
+      .flatMap((block) => block.t === 'p' || block.t === 'note' || block.t === 'try' ? [block.text] : block.t === 'ul' ? block.items : [])
+      .join('\n')
+    expect(prose).toContain('does not prove that an edge or route already exists')
+    expect(prose).not.toContain('can reach `e` through `r` in one extra hop')
+  })
+
+  it('keeps deletion and update lesson claims scoped to the demo', () => {
+    const prose = LESSONS.flatMap((lesson) => lesson.steps).flatMap((step) => step.blocks)
+      .flatMap((block) => block.t === 'p' || block.t === 'note' || block.t === 'try' ? [block.text] : block.t === 'ul' ? block.items : [])
+      .join('\n')
+    expect(prose).toContain('In this visualizer, soft delete')
+    expect(prose).toContain('Deletion support and candidate handling differ')
+    expect(prose).toContain('Neither update strategy guarantees exact nearest neighbors')
+    expect(prose).not.toMatch(/default in every production|It is correct and it is expensive|Small nudges are safe/)
+  })
+
   it('every step of every lesson applies cleanly and leaves a usable state', () => {
     for (const [li, lesson] of LESSONS.entries()) {
       let s = initialState()
@@ -304,30 +359,5 @@ describe('operation isolation', () => {
       expect(next.step).toBe(0)
       expect(next.playing).toBe(false)
     }
-  })
-})
-
-
-describe('beginner same-target experiment', () => {
-  it('changes efSearch from one to two while keeping graph, target and result distances fixed', () => {
-    const first = reducer(initialState(), { type: 'startGuided' })
-    expect(first.trace!.results.map(r => first.graph.nodes.get(r.id)!.label)).toEqual(['A'])
-    const finished = reducer(first, { type: 'seek', index: first.trace!.steps.length - 1 })
-    const tuned = reducer(finished, { type: 'setParams', patch: { efSearch: 2 } })
-    const second = reducer(tuned, { type: 'rerunSearch' })
-    expect(second.graph).toBe(first.graph)
-    expect(second.lastSearch!.query).toEqual(first.lastSearch!.query)
-    expect(second.trace!.exact).toEqual(first.trace!.exact)
-    expect(second.trace!.results.map(r => second.graph.nodes.get(r.id)!.label)).toEqual(['T'])
-    expect(second.comparison).toEqual({ before: { ef: 1, checks: 3, found: 0, total: 1 }, after: { ef: 2, checks: 4, found: 1, total: 1 } })
-  })
-
-  it('retains the target after closing a trace but invalidates comparisons when the graph is rebuilt', () => {
-    const first = reducer(initialState(), { type: 'startGuided' })
-    const closed = reducer(first, { type: 'closeTrace' })
-    expect(reducer(closed, { type: 'rerunSearch' }).lastSearch!.query).toEqual(first.lastSearch!.query)
-    const rebuilt = reducer(closed, { type: 'setParams', patch: { M: 2 } })
-    expect(rebuilt.lastSearch).toBeUndefined()
-    expect(rebuilt.comparison).toBeUndefined()
   })
 })

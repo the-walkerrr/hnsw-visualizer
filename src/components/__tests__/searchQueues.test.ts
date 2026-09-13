@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_PARAMS, runInsert, runSearch, buildIndex } from '../../hnsw/algorithm'
+import { DEFAULT_PARAMS, runInsert, runSearch, runUpdate, buildIndex } from '../../hnsw/algorithm'
 import { emptyGraph } from '../../hnsw/graph'
 import { EF_GRAPH, EF_QUERY } from '../../lessons/efSearchExample'
-import { searchQueues } from '../searchQueues'
+import { inPlaceUpdateCandidates, searchQueues } from '../searchQueues'
 import { preset } from '../../hnsw/presets'
 
 describe('live search queues', () => {
@@ -35,5 +35,28 @@ describe('live search queues', () => {
     const insert = runInsert(graph, { ...DEFAULT_PARAMS, efConstruction: 12 }, [500, 300], { level: 0 }).trace
     const base = insert.steps.find((s) => s.line === 's2' && s.vis.layer === 0)!
     expect(searchQueues(insert, base.index)!.capacity).toBe(12)
+  })
+
+  it('shows W/C for reinsert updates and a two-hop selection for in-place updates', () => {
+    const graph = buildIndex(emptyGraph(), DEFAULT_PARAMS, preset('clusters').make(48, 7))
+    const id = graph.entry!
+    const moved = [760, 470] as const
+
+    const reinsert = runUpdate(graph, DEFAULT_PARAMS, id, moved, 'reinsert').trace
+    expect(searchQueues(reinsert, reinsert.steps.length - 1)).not.toBeNull()
+    expect(inPlaceUpdateCandidates(reinsert, reinsert.steps.length - 1)).toBeNull()
+
+    const inPlace = runUpdate(graph, DEFAULT_PARAMS, id, moved, 'in-place').trace
+    expect(searchQueues(inPlace, inPlace.steps.length - 1)).toBeNull()
+    const beforePool = inPlaceUpdateCandidates(inPlace, 0)!
+    expect(beforePool.layer).toBeNull()
+    expect(beforePool.pool).toEqual([])
+
+    const final = inPlaceUpdateCandidates(inPlace, inPlace.steps.length - 1)!
+    expect(final.layer).not.toBeNull()
+    expect(final.pool.length).toBeGreaterThan(0)
+    expect(final.complete).toBe(true)
+    expect(final.selected.length).toBeLessThanOrEqual(DEFAULT_PARAMS.M)
+    expect(new Set([...final.selected, ...final.rejected])).toEqual(new Set(final.pool))
   })
 })
