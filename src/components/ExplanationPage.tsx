@@ -51,6 +51,30 @@ function KnowledgeCheck({ question, choices, correct, explanation }: { question:
   return <div className="knowledge-check"><b>{question}</b><div className="row">{choices.map((choice, i) => <button className="button compact" key={choice} aria-pressed={answer === i} onClick={() => setAnswer(i)}>{choice}</button>)}</div>{answer !== null && <p role="status">{answer === correct ? 'Yes. ' : 'Try that idea again: '}{explanation}</p>}</div>
 }
 
+function RepresentationVisual() {
+  return <svg className="representation-plot" viewBox="0 0 360 250" role="img" aria-labelledby="representation-title representation-desc">
+    <title id="representation-title">A song query plotted near its closest stored song</title>
+    <desc id="representation-desc">Quiet Piano is low energy and highly acoustic. Dance Beat is high energy and less acoustic. The soft acoustic query appears close to Quiet Piano, so Quiet Piano is the closest match.</desc>
+    <g className="representation-axis">
+      <path d="M54 28v174h278"/>
+      <path d="m54 28-5 9m5-9 5 9M332 202l-9-5m9 5-9 5"/>
+    </g>
+    <text className="representation-axis-label" x="192" y="233" textAnchor="middle">energy · low → high</text>
+    <text className="representation-axis-label" x="17" y="119" textAnchor="middle" transform="rotate(-90 17 119)">acoustic feel · low → high</text>
+    <path className="representation-match" d="M132 64 106 47"/>
+    <text className="representation-match-label" x="118" y="82" textAnchor="end">closest match</text>
+    <g className="representation-point stored" transform="translate(106 47)">
+      <circle r="9"/><text x="14" y="-9">Quiet Piano</text><text className="vector-values" x="14" y="7">[0.2, 0.9]</text>
+    </g>
+    <g className="representation-point stored" transform="translate(294 184)">
+      <circle r="9"/><text x="-14" y="-10" textAnchor="end">Dance Beat</text><text className="vector-values" x="-14" y="7" textAnchor="end">[0.9, 0.1]</text>
+    </g>
+    <g className="representation-point query" transform="translate(132 64)">
+      <circle r="11"/><text x="14" y="24">query</text><text className="vector-values" x="14" y="40">[0.3, 0.8]</text>
+    </g>
+  </svg>
+}
+
 function BruteForceVisual() {
   const points = [
     { x: 84, y: 66, d: '5.8' }, { x: 168, y: 184, d: '4.1' }, { x: 270, y: 84, d: '2.7' },
@@ -309,7 +333,7 @@ export function ExplanationPage({ onOpenPlayground, onStartFirstSearch }: { onOp
 
         <div className="guide-content">
           <section id="chapter-problem" className="guide-chapter">
-            <header className="chapter-heading"><span>01</span><div><p className="section-kicker">The problem</p><h2>Find similar items without checking everything.</h2><p>A music app may need songs like a sample track; a search engine may need passages like a question. Both become the same problem once each item is represented by numbers.</p></div></header>
+            <header className="chapter-heading"><span>01</span><div><p className="section-kicker">The problem</p><h2>Find similar items without checking everything.</h2><p>To recommend a song, an app turns every song into a list of numbers describing traits such as energy and acoustic feel. It turns your request into numbers too, then looks for stored lists that are close to it. HNSW helps find those close matches without comparing your request with every stored item.</p></div></header>
             <div className="lesson-block">
               <h3>Four words before the first example</h3>
               <dl className="term-grid compact-terms">
@@ -318,7 +342,7 @@ export function ExplanationPage({ onOpenPlayground, onStartFirstSearch }: { onOp
                 <div><dt>Distance</dt><dd>How far a stored vector is from q. Smaller means more similar.</dd></div>
                 <div><dt><ParameterLink name="k"/></dt><dd>The number of matches to return.</dd></div>
               </dl>
-              <div className="example-card representation-example"><span>ONE TOY REPRESENTATION</span><h4>From a song to numbers, then back to a song.</h4><p>Imagine two illustrative axes: energy and acoustic feel. “Quiet Piano” is stored as vector <code>[0.8, 0.1]</code>, while “Dance Beat” is <code>[0.2, 0.9]</code>. A new query [0.8, 0.2] plots close to “Quiet Piano”, so a nearest-neighbor search returns that stored song. Real embeddings usually have hundreds of dimensions whose axes are not human-readable; these two numbers only make the representation drawable.</p></div>
+              <div className="example-card representation-example"><span>ONE TOY REPRESENTATION</span><h4>From a song to numbers, then back to a song.</h4><div className="representation-layout"><div className="representation-copy"><p><b>1 · Store songs.</b> “Quiet Piano” becomes <code>[0.2, 0.9]</code>: low energy and high acoustic feel. “Dance Beat” becomes <code>[0.9, 0.1]</code>.</p><p><b>2 · Turn the request into numbers.</b> A request for a soft acoustic song becomes query <code>[0.3, 0.8]</code>.</p><p><b>3 · Return the closest item.</b> The query sits near “Quiet Piano”, so that song is the nearest match.</p></div><RepresentationVisual /></div><p className="representation-note">Real embeddings usually contain hundreds of dimensions that do not have simple human-readable names. These two axes are only a small, drawable example.</p></div>
               <h3 className="lesson-subheading">Brute force is simple and exact</h3>
               <ol className="explanation-steps">
                 <li><b>Measure.</b><span>Calculate the query’s distance to every stored vector.</span></li>
@@ -354,7 +378,7 @@ export function ExplanationPage({ onOpenPlayground, onStartFirstSearch }: { onOp
                 <div><dt>Entry point</dt><dd>The saved node where every search begins, on the highest layer.</dd></div>
                 <div><dt><ParameterLink name="mL"/></dt><dd>Controls how often nodes are promoted to upper layers.</dd></div>
               </dl>
-              <p>Follow the blue route in the visual: make long moves on L2, refine the region on L1, then finish among all vectors on L0.</p>
+              <p className="stage-visual-intro">Follow the blue route in the visual: make long moves on L2, refine the region on L1, then finish among all vectors on L0.</p>
               <LayersVisual />
               <div className="comparison-strip"><div><span>UPPER LAYERS</span><strong>Highways</strong><p>Few nodes, long links, cheap navigation toward the right region.</p></div><div><span>LAYER 0</span><strong>Neighborhood streets</strong><p>Every node, detailed links, enough alternatives to choose the final matches.</p></div></div>
               <p className="chapter-takeaway"><b>Nothing is duplicated semantically:</b> A on L2 and A on L0 are the same stored vector shown at two navigation levels.</p>

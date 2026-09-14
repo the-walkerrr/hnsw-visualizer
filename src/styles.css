@@ -387,6 +387,20 @@ input:hover, select:hover { border-color: var(--text-3); }
 .example-card > span { display: block; margin-bottom: 9px; color: var(--blue); font: 600 9px var(--mono); letter-spacing: .1em; }
 .example-card h4 { margin: 0 0 8px; font-size: 15px; }
 .example-card p { margin: 0; color: var(--text-2); font-size: 13.5px; line-height: 1.7; }
+.representation-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, .9fr); gap: 24px; align-items: center; margin-top: 16px; }
+.representation-copy p + p { margin-top: 10px; }
+.representation-copy b { color: var(--text-1); }
+.representation-plot { display: block; width: 100%; height: auto; border-left: 1px solid var(--line); }
+.representation-axis { fill: none; stroke: var(--line-strong); stroke-width: 1.2; stroke-linecap: round; stroke-linejoin: round; }
+.representation-axis-label { fill: var(--text-3); font: 9px var(--mono); }
+.representation-match { fill: none; stroke: var(--green); stroke-width: 2; stroke-dasharray: 4 4; }
+.representation-match-label { fill: var(--green); font: 600 10px var(--sans); }
+.representation-point circle { fill: var(--surface-1); stroke: var(--text-2); stroke-width: 1.8; }
+.representation-point text { fill: var(--text-1); font: 11px var(--sans); }
+.representation-point.query circle { fill: var(--blue); stroke: var(--surface-0); stroke-width: 3; }
+.representation-point.query text:not(.vector-values) { fill: var(--blue); font-weight: 650; }
+.representation-point .vector-values { fill: var(--text-3); font: 9px var(--mono); }
+.example-card .representation-note { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); color: var(--text-3); font-size: 11.5px; }
 .neighbor-choice-visual { margin: 18px 0 0; padding-top: 18px; border-top: 1px solid var(--line); }
 .neighbor-choice-visual svg { display: block; width: 100%; height: auto; }
 .neighbor-choice-visual figcaption { margin-top: 8px; color: var(--text-2); font-size: 12px; line-height: 1.6; }
@@ -698,6 +712,8 @@ input:hover, select:hover { border-color: var(--text-3); }
   .guide-hero > p:not(.section-kicker) { font-size: 16px; }
   .term-grid { grid-template-columns: 1fr; }
   .term-grid > div { padding: 18px; }
+  .representation-layout { grid-template-columns: 1fr; }
+  .representation-plot { max-width: 430px; margin-inline: auto; border-top: 1px solid var(--line); border-left: 0; }
   .guide-layout { display: block; }
   .guide-toc { position: static; margin-bottom: 0; padding: 24px 0; }
   .guide-chapter { padding: 52px 0; }

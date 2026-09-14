@@ -26,6 +26,7 @@ describe('operations through the reducer', () => {
     expect(guided.params.efSearch).toBe(1)
     expect(guided.k).toBe(1)
     expect(guided.tool).toBe('search')
+    expect(guided.viewMode).toBe('stack')
     expect(guided.rightTab).toBe('queues')
     expect(guided.trace?.op).toBe('search')
     expect(guided.step).toBe(0)

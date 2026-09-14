@@ -334,7 +334,9 @@ describe('render smoke', () => {
     expect(html).toContain('HNSW stands for Hierarchical Navigable Small World')
     expect(html).toContain('approximate nearest-neighbor search')
     expect(html).toContain('“Quiet Piano”')
-    expect(html).toContain('query [0.8, 0.2]')
+    expect(html).toContain('query <code>[0.3, 0.8]</code>')
+    expect(html).toContain('role="img" aria-labelledby="representation-title representation-desc"')
+    expect(html).toContain('closest match')
     expect(html.indexOf('“Quiet Piano”')).toBeLessThan(html.indexOf('id="chapter-connect"'))
   })
 

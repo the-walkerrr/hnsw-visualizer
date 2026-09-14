@@ -335,7 +335,7 @@ export function reducer(state: AppState, action: Action): AppState {
         params,
         k: 1,
         tool: 'search',
-        viewMode: 'layer',
+        viewMode: 'stack',
         rightTab: 'queues',
         trace,
         playing: false,
