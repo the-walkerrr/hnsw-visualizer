@@ -43,4 +43,18 @@ describe('session persistence', () => {
     const custom = reducer(initialState(), { type: 'script', ops: [{ t: 'insert', at: [120, 180] }] })
     expect(deserializeState(serializeState(custom))!.customGraph).toBe(true)
   })
+
+  it('moves sessions saved on the removed Experiments tab back to Insert', () => {
+    const envelope = JSON.parse(serializeState(initialState()))
+    envelope.state.rightTab = 'lab'
+
+    expect(deserializeState(JSON.stringify(envelope))!.rightTab).toBe('params')
+  })
+
+  it('moves sessions saved on Results to Details', () => {
+    const envelope = JSON.parse(serializeState(initialState()))
+    envelope.state.rightTab = 'metrics'
+
+    expect(deserializeState(JSON.stringify(envelope))!.rightTab).toBe('details')
+  })
 })

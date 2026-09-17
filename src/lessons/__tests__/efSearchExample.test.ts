@@ -7,7 +7,7 @@ describe('efSearch teaching example', () => {
   it('isolates efSearch on one graph: one slot rejects the bridge; two slots discover the true nearest', () => {
     const narrow = efSearchExample(1)
     const wide = efSearchExample(2)
-    expect(edgesOnLayer(EF_GRAPH, 0)).toEqual([[0, 1], [0, 2], [2, 3]])
+    expect(edgesOnLayer(EF_GRAPH, 0)).toEqual([[0, 1], [0, 2], [0, 4], [0, 5], [2, 3], [2, 4], [2, 7], [3, 6], [4, 7]])
     expect(narrow.trace.results.map((c) => c.id)).toEqual([1]) // A
     expect(wide.trace.results.map((c) => c.id)).toEqual([3]) // T
     expect(narrow.trace.exact).toEqual(wide.trace.exact)
@@ -16,8 +16,8 @@ describe('efSearch teaching example', () => {
     expect(narrow.frames.some((s) => s.vis.visited.includes(3))).toBe(false)
     expect(wide.frames.find((s) => s.line === 's13' && s.vis.considering === 2)?.vis.dynamic).toEqual([1, 2])
     expect(wide.frames.some((s) => s.line === 's9' && s.vis.current === 2)).toBe(true)
-    expect(narrow.trace.stats.distCalls).toBe(3)
-    expect(wide.trace.stats.distCalls).toBe(4)
+    expect(narrow.trace.stats.distCalls).toBe(5)
+    expect(wide.trace.stats.distCalls).toBe(8)
     for (const [ef, run] of [[1, narrow], [2, wide]] as const) {
       for (const step of run.frames) {
         expect(step.vis.dynamic.length).toBeLessThanOrEqual(ef)

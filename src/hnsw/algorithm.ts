@@ -202,9 +202,9 @@ class Run {
     this.vis.dynamic = W.ids()
     this.emit(
       's2',
-      `SEARCH-LAYER on layer ${lc}, ef = ${ef}`,
-      `${why} The visited set v, the candidate queue C and the result list W all start out as the entry point set {${this.nms(entryPoints)}}. ` +
-        `W will never hold more than ef = ${ef} element${ef === 1 ? '' : 's'}, and that single number is the whole speed/accuracy dial.`,
+      `SEARCH-LAYER on layer ${lc}, SEARCH_WIDTH = ${ef}`,
+      `${why} VISITED_NODES, CANDIDATES_TO_CHECK, and BEST_CANDIDATES all start as the entry point set {${this.nms(entryPoints)}}. ` +
+        `BEST_CANDIDATES will never hold more than SEARCH_WIDTH = ${ef} element${ef === 1 ? '' : 's'}, and that single number is the whole speed/accuracy dial.`,
     )
 
     while (C.size > 0) {
@@ -216,8 +216,8 @@ class Run {
         this.emit(
           's8',
           `Stop: nearest candidate is further than the worst result`,
-          `The closest thing left in C is ${this.nm(c.id)} at ${f(c.dist)}, but the *worst* entry already in W (${this.nm(furthest.id)}) is only ${f(furthest.dist)} away. ` +
-            `C is ordered by distance, so none of the queued dots themselves can improve W. The search stops without checking their remaining links to save work. An unseen neighbour could still be closer: this is an approximate stopping rule, not proof of an exact answer.`,
+          `The closest thing left in CANDIDATES_TO_CHECK is ${this.nm(c.id)} at ${f(c.dist)}, but the *worst* entry already in BEST_CANDIDATES (${this.nm(furthest.id)}) is only ${f(furthest.dist)} away. ` +
+            `CANDIDATES_TO_CHECK is ordered by distance, so none of the queued dots themselves can improve BEST_CANDIDATES. The search stops without checking their remaining links to save work. An unseen neighbour could still be closer: this is an approximate stopping rule, not proof of an exact answer.`,
         )
         break
       }
@@ -226,7 +226,7 @@ class Run {
       this.emit(
         's9',
         `Expand ${this.nm(c.id)} (${f(c.dist)} away)`,
-        `${this.nm(c.id)} is the closest unexpanded candidate, and it is closer than W's worst entry (${f(furthest.dist)}), so it is worth looking at its neighbours. ` +
+        `${this.nm(c.id)} is the closest unexpanded candidate, and it is closer than BEST_CANDIDATES' worst entry (${f(furthest.dist)}), so it is worth looking at its neighbours. ` +
           `Only the edges of layer ${lc} are followed — the other layers do not exist as far as this call is concerned.`,
       )
 
@@ -235,7 +235,7 @@ class Run {
           this.emit(
             's10',
             `Skip ${this.nm(e)} — already visited`,
-            `The visited set v is what stops the walk going round in circles; each node's distance is computed at most once per SEARCH-LAYER call.`,
+            `VISITED_NODES stops the walk going round in circles; each node's distance is computed at most once per SEARCH-LAYER call.`,
             'minor',
             { considering: e },
           )
@@ -258,12 +258,12 @@ class Run {
             's13',
             `Keep ${this.nm(e)} (${f(dist)})`,
             (hadRoom
-              ? `W had a spare slot (${W.size - 1}/${ef} occupied), so ${this.nm(e)} is accepted. `
-              : `${f(dist)} beats W's worst entry ${f(worst.dist)}, so ${this.nm(e)} is kept. `) +
+              ? `BEST_CANDIDATES had a spare slot (${W.size - 1}/${ef} occupied), so ${this.nm(e)} is accepted. `
+              : `${f(dist)} beats BEST_CANDIDATES' worst entry ${f(worst.dist)}, so ${this.nm(e)} is kept. `) +
               (evicted
-                ? `W was full, so the furthest element ${this.nm(evicted.id)} (${f(evicted.dist)}) was dropped.`
+                ? `BEST_CANDIDATES was full, so the furthest element ${this.nm(evicted.id)} (${f(evicted.dist)}) was dropped.`
                 : `Nothing had to be evicted.`) +
-              ` It also goes into C, which is how the frontier keeps moving.`,
+              ` It also goes into CANDIDATES_TO_CHECK, which is how the frontier keeps moving.`,
             'minor',
             { considering: e },
           )
@@ -271,7 +271,7 @@ class Run {
           this.emit(
             's12',
             `Reject ${this.nm(e)} (${f(dist)})`,
-            `W is already full with ef = ${ef} closer elements — its worst is ${f(worst.dist)} — so ${this.nm(e)} is not a result and, crucially, is *not* added to C either. The search never expands through it.`,
+            `BEST_CANDIDATES is already full with SEARCH_WIDTH = ${ef} closer elements — its worst is ${f(worst.dist)} — so ${this.nm(e)} is not a result and, crucially, is *not* added to CANDIDATES_TO_CHECK either. The search never expands through it.`,
             'minor',
             { considering: e, rejected: [e] },
           )
@@ -286,12 +286,12 @@ class Run {
     this.emit(
       's15',
       `Layer ${lc} returns ${out.length} element${out.length === 1 ? '' : 's'}`,
-      `W = {${this.nms(out.map((c) => c.id))}}. ${this.distCalls} distance computations charged so far in this operation. ` +
+      `BEST_CANDIDATES = {${this.nms(out.map((c) => c.id))}}. ${this.distCalls} distance computations charged so far in this operation. ` +
         (connectionSearch
-          ? `These are possible connections, not final query results. Choose useful links next. ${lc > 0 ? "During the connection phase the whole W list starts the next lower layer." : "This is the bottom layer; no further descent is needed."}`
+          ? `These are possible connections, not final query results. Choose useful links next. ${lc > 0 ? "During the connection phase the whole BEST_CANDIDATES list starts the next lower layer." : "This is the bottom layer; no further descent is needed."}`
           : lc > 0
           ? `The nearest of these becomes the entry point one layer down — the long edges up here did the travelling, the short edges below will do the refining.`
-          : `On layer 0 this list is the answer (after trimming to k).`),
+          : `On layer 0 this list is the answer (after trimming to NUM_RESULTS_REQUESTED).`),
     )
     this.proc = prevProc
     return out
@@ -330,7 +330,7 @@ class Run {
       this.emit(
         'n2',
         `SELECT-NEIGHBORS-SIMPLE: keep the ${keep.length} nearest of ${cands.length}`,
-        `${why} Simple selection takes the M = ${M} closest candidates and nothing else: {${this.nms(this.vis.accepted)}}. ` +
+        `${why} Simple selection takes the TARGET_CONNECTIONS = ${M} closest candidates and nothing else: {${this.nms(this.vis.accepted)}}. ` +
           `Cheap, but every edge tends to point into the same dense blob, which is exactly how a greedy walk gets trapped. Switch the rule to "heuristic" to see the difference.`,
       )
       this.proc = prevProc
@@ -341,7 +341,7 @@ class Run {
     this.emit(
       'h2',
       `SELECT-NEIGHBORS-HEURISTIC over ${cands.length} candidates`,
-      `${why} R starts empty and W holds every candidate, ordered by distance to ${this.nm(baseId)}. At most M = ${M} will survive.`,
+      `${why} SELECTED_NEIGHBORS starts empty and REMAINING_CANDIDATES holds every candidate, ordered by distance to ${this.nm(baseId)}. At most TARGET_CONNECTIONS = ${M} will survive.`,
     )
 
     if (this.params.extendCandidates) {
@@ -356,7 +356,7 @@ class Run {
       for (const c of extra) W.push(c)
       this.emit(
         'h3',
-        `extendCandidates: +${extra.length} second-hop candidates`,
+        `EXTEND_CANDIDATES: +${extra.length} second-hop candidates`,
         `The candidate pool is widened with the neighbours of the neighbours (${this.nms(extra.map((e) => e.id))}). ` +
           `It costs distance computations and usually only pays off on extremely clustered data — which is why it is off by default.`,
       )
@@ -382,7 +382,7 @@ class Run {
         this.emit(
           'h8',
           `Accept ${this.nm(e.id)} (${f(e.dist)})`,
-          `${this.nm(e.id)} is closer to ${this.nm(baseId)} than it is to any neighbour already kept, so it covers a direction nothing else covers. R = {${this.nms(this.vis.accepted)}}.`,
+          `${this.nm(e.id)} is closer to ${this.nm(baseId)} than it is to any neighbour already kept, so it covers a direction nothing else covers. SELECTED_NEIGHBORS = {${this.nms(this.vis.accepted)}}.`,
           'minor',
           { considering: e.id },
         )
@@ -409,7 +409,7 @@ class Run {
         this.emit(
           'h11',
           `Refill with pruned candidate ${this.nm(c.id)}`,
-          `The heuristic ran out of "new direction" candidates before filling M = ${M} slots. keepPrunedConnections spends the leftover budget on the closest rejects rather than leaving the node with fewer routes for future searches.`,
+          `The heuristic ran out of "new direction" candidates before filling TARGET_CONNECTIONS = ${M} slots. KEEP_PRUNED_CONNECTIONS spends the leftover budget on the closest rejects rather than leaving the node with fewer routes for future searches.`,
           'minor',
         )
       }
@@ -446,7 +446,7 @@ class Run {
       this.emit(
         lines.over,
         `${this.nm(e)} now has ${conns.length} edges — over the cap of ${cap}`,
-        `${reason} Layer ${lc} allows at most ${cap} edges per node (Mmax${lc === 0 ? '0' : ''} = ${cap}). ` +
+        `${reason} Layer ${lc} allows at most ${cap} edges per node (${lc === 0 ? 'MAX_CONNECTIONS_BASE' : 'MAX_CONNECTIONS_UPPER'} = ${cap}). ` +
           `Rather than dropping the newest edge, HNSW re-runs the neighbour selection over all ${conns.length} of them, so the *set* stays well spread.`,
         'major',
         { focus: e },
@@ -490,7 +490,7 @@ class Run {
     this.emit(
       'i3',
       `Roll a level for ${n.label} → ${level}`,
-      `l = ⌊−ln(U(0,1)) · mL⌋ with mL = ${p.mL.toFixed(3)} came out as ${level}, so ${n.label} exists on layers 0…${level}. ` +
+      `NEW_NODE_TOP_LAYER = ⌊−ln(RANDOM_0_TO_1) · LAYER_MULTIPLIER⌋ with LAYER_MULTIPLIER = ${p.mL.toFixed(3)} came out as ${level}, so ${n.label} exists on layers 0…${level}. ` +
         `Each extra layer is only ${pct(layerOdds)} as likely as the one below, so roughly 1 node in ${Math.round(1 / layerOdds)} reaches layer 1, 1 in ${Math.round(1 / (layerOdds * layerOdds))} reaches layer 2, and so on. ` +
         `Nothing about the *data* decides this — the level is a coin flip, which is what keeps insertion cheap and the layer sizes exponentially decaying.`,
     )
@@ -553,7 +553,7 @@ class Run {
         W,
         p.M,
         lc,
-        `Layer ${lc}: ${W.length} candidates found, at most M = ${p.M} become edges.`,
+        `Layer ${lc}: ${W.length} candidates found, at most TARGET_CONNECTIONS = ${p.M} become edges.`,
       )
       this.proc = 'insert'
       for (const c of chosen) link(this.graph, n.id, c, lc)
@@ -572,7 +572,7 @@ class Run {
         this.emit(
           'i14',
           `Carry all ${ep.length} candidates down to layer ${lc - 1}`,
-          `Unlike phase 1, the *whole* result list W becomes the entry point set for the next layer down. Starting the next beam search from many points at once is what keeps recall high near cluster boundaries.`,
+          `Unlike phase 1, the *whole* BEST_CANDIDATES list becomes the entry point set for the next layer down. Starting the next search from many points at once is what keeps recall high near cluster boundaries.`,
         )
       }
     }
@@ -613,13 +613,13 @@ class Run {
     )
 
     for (let lc = L; lc > 0; lc--) {
-      const W = this.searchLayer(q, ep, 1, lc, `Coarse pass on layer ${lc}: ef = 1, plain greedy.`)
+      const W = this.searchLayer(q, ep, 1, lc, `Coarse pass on layer ${lc}: SEARCH_WIDTH = 1, plain greedy.`)
       ep = [W[0].id]
       this.proc = 'knn-search'
       this.emit(
         'k4',
         `Layer ${lc} → best so far ${this.nm(ep[0])}`,
-        `With ef = 1 this is a pure greedy walk: keep stepping to whichever neighbour is closer to q, stop when no neighbour improves. ` +
+        `With SEARCH_WIDTH = 1 this is a pure greedy walk: keep stepping to whichever neighbour is closer to QUERY, stop when no neighbour improves. ` +
           `On a sparse layer that lands in the right *region* in a handful of hops. It is allowed to be wrong in detail — the layers below fix that.`,
       )
     }
@@ -630,7 +630,7 @@ class Run {
       ep,
       ef,
       0,
-      `The real search: layer 0 holds every element, and ef = ${ef}.`,
+      `The real search: layer 0 holds every element, and SEARCH_WIDTH = ${ef}.`,
     )
     this.proc = 'knn-search'
     const live = W.filter((c) => !node(this.graph, c.id).deleted)
@@ -641,9 +641,9 @@ class Run {
     this.emit(
       'k6',
       `Answer: ${this.nms(out.map((c) => c.id))}`,
-      `The top ${out.length} of W by distance. ` +
+      `The top ${out.length} of BEST_CANDIDATES by distance. ` +
         (skipped > 0
-          ? `${skipped} tombstoned element${skipped === 1 ? ' was' : 's were'} filtered out of the result list — they were still walked through, they just cannot be returned. That is the hidden cost of soft deletes: they eat into ef. `
+          ? `${skipped} tombstoned element${skipped === 1 ? ' was' : 's were'} filtered out of the result list — they were still walked through, they just cannot be returned. That is the hidden cost of soft deletes: they consume SEARCH_WIDTH capacity. `
           : '') +
         `Total cost: ${this.distCalls} distance computations against ${this.bruteForceBaseline} for an exact scan.`,
     )
@@ -880,7 +880,7 @@ export function runSearch(
   const run = new Run(graph, params, 'search', record)
   const results = run.search(q, k)
   const exact = bruteForce(graph, q, k, params)
-  return { graph: run.graph, trace: run.trace('search', `Search k = ${k}`, results, exact) }
+  return { graph: run.graph, trace: run.trace('search', `Search for ${k} ${k === 1 ? 'result' : 'results'}`, results, exact) }
 }
 
 export function runSoftDelete(graph: Graph, params: Params, id: NodeId): RunResult {

@@ -2,6 +2,7 @@ import { initialState, type AppState } from './store'
 
 const STORAGE_KEY = 'hnsw-explorer:session:v1'
 const STORAGE_VERSION = 1
+const RIGHT_TABS = new Set(['build', 'params', 'code', 'node', 'details', 'queues'])
 
 interface PersistedEnvelope {
   version: typeof STORAGE_VERSION
@@ -23,6 +24,10 @@ function reviver(_key: string, value: unknown) {
     return new Map((value as { __hnswMap: Array<[unknown, unknown]> }).__hnswMap)
   }
   return value
+}
+
+function isRightTab(value: unknown): value is AppState['rightTab'] {
+  return typeof value === 'string' && RIGHT_TABS.has(value)
 }
 
 export function serializeState(state: AppState): string {
@@ -48,6 +53,9 @@ export function deserializeState(raw: string): AppState | null {
       ...candidate,
       params: { ...defaults.params, ...candidate.params },
       dataset: { ...defaults.dataset, ...candidate.dataset },
+      rightTab: (candidate.rightTab as unknown) === 'metrics'
+        ? 'details'
+        : isRightTab(candidate.rightTab) ? candidate.rightTab : defaults.rightTab,
       playing: false,
       movingNode: null,
     }

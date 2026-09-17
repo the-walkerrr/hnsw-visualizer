@@ -1,531 +1,1069 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { LISTINGS, type Listing } from '../hnsw/pseudocode'
-import { CONTROL_GUIDES, type ControlGuide } from '../lessons/controlGuides'
-import { followLearnReference, LEARN_REFERENCE_EVENT, prepareLearnReturn, readLearnReturnPoint, type LearnReturnPoint } from '../learnReferenceNavigation'
-import { EfSearchVisual } from './EfSearchVisual'
-import { ParameterLink } from './ParameterLink'
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { LISTINGS, type Listing } from "../hnsw/pseudocode";
+import { edgesOnLayer } from "../hnsw/graph";
+import { distance } from "../hnsw/metric";
+import { CONTROL_GUIDES, type ControlGuide } from "../lessons/controlGuides";
+import {
+  EF_GRAPH,
+  EF_QUERY,
+  efSearchExample,
+} from "../lessons/efSearchExample";
+import {
+  followLearnReference,
+  LEARN_REFERENCE_EVENT,
+  prepareLearnReturn,
+  readLearnReturnPoint,
+  type LearnReturnPoint,
+} from "../learnReferenceNavigation";
 
-function ControlCard({ guide }: { guide: ControlGuide }) {
-  return <details id={guide.id} className="learn-disclosure control-reference">
-    <summary>{guide.label}</summary>
-    <div className="disclosure-content">
-      <p>{guide.plain}</p>
-      <dl>{guide.inputs.map((input) => <div key={input.label}><dt>{input.label}</dt><dd>{input.explanation}</dd></div>)}</dl>
-      <div className="control-example"><span>EXAMPLE</span><p>{guide.example}</p></div>
-      <p className="hint">{guide.when}</p>
-      {guide.learnMore && <a className="control-deep-link" href={guide.learnMore.href} data-learn-reference onClick={followLearnReference}>{guide.learnMore.label} →</a>}
-    </div>
-  </details>
+const SECTION_NAV = [
+  { id: "chapter-problem", number: "01", label: "The need" },
+  { id: "chapter-search", number: "02", label: "Search" },
+  { id: "chapter-insert", number: "03", label: "Insert" },
+  { id: "chapter-delete", number: "04", label: "Delete" },
+  { id: "chapter-practice", number: "05", label: "Try it" },
+  { id: "advanced-learning", number: "+", label: "Advanced" },
+] as const;
+
+type SectionId = (typeof SECTION_NAV)[number]["id"];
+const SECTION_IDS: readonly string[] = SECTION_NAV.map((s) => s.id);
+
+// Sub-anchors (deep links from Playground panels, ParameterLink, etc.) that
+// live inside a section but aren't the section's own id.
+const ANCHOR_SECTION: Record<string, SectionId> = {
+  "chapter-connect": "chapter-problem",
+  "chapter-layers": "chapter-search",
+  "ef-search-explained": "chapter-search",
+  "w-per-layer": "chapter-search",
+  "c-admission-rule": "chapter-search",
+  "keep-routes-exercise": "chapter-search",
+  "lesson-4": "chapter-insert",
+  "soft-delete": "chapter-delete",
+  "hard-delete": "chapter-delete",
+  "chapter-update": "advanced-learning",
+  "update-reinsert": "advanced-learning",
+  "update-in-place": "advanced-learning",
+  "parameter-guide": "advanced-learning",
+  "algorithm-steps": "advanced-learning",
+};
+for (const guide of Object.values(CONTROL_GUIDES))
+  ANCHOR_SECTION[guide.id] = "advanced-learning";
+for (const listing of LISTINGS)
+  ANCHOR_SECTION[`algorithm-${listing.id}`] = "advanced-learning";
+
+function sectionFor(id: string): SectionId | null {
+  if (SECTION_IDS.includes(id)) return id as SectionId;
+  return ANCHOR_SECTION[id] ?? null;
 }
 
-function AlgorithmListing({ listing }: { listing: Listing }) {
-  return <section id={`algorithm-${listing.id}`} className="algorithm-listing">
-    <header className="algorithm-listing-heading"><code>{listing.title}</code><span>{listing.subtitle}</span></header>
-    <div className="algorithm-listing-content">
-      <div className="code">
-        {listing.lines.map((line) => <span key={line.key} className={`ln${line.indent === 0 ? ' head' : ''}`} title={line.note}>
-          {'  '.repeat(line.indent)}{line.text}
-        </span>)}
-      </div>
-      {listing.lines.some(line => line.note) && <dl className="algorithm-notes">
-        {listing.lines.filter(line => line.note).map(line => <div key={line.key}><dt>{line.key}</dt><dd>{line.note}</dd></div>)}
-      </dl>}
-    </div>
-  </section>
+function SectionPager({ current }: { current: SectionId }) {
+  const index = SECTION_IDS.indexOf(current);
+  const prev = index > 0 ? SECTION_NAV[index - 1] : null;
+  const next = index < SECTION_NAV.length - 1 ? SECTION_NAV[index + 1] : null;
+  return (
+    <nav className="section-pager" aria-label="Section navigation">
+      {prev ? (
+        <a className="button quiet" href={`#${prev.id}`}>
+          <span aria-hidden="true">←</span> {prev.label}
+        </a>
+      ) : (
+        <span />
+      )}
+      {next ? (
+        <a className="button primary" href={`#${next.id}`}>
+          {next.label} <span aria-hidden="true">→</span>
+        </a>
+      ) : (
+        <span />
+      )}
+    </nav>
+  );
 }
-
-const LEARN_LISTINGS = LISTINGS
 
 function Visual({ title, children }: { title: string; children: ReactNode }) {
-  return <figure className="lesson-visual">
-    <div className="visual-label"><span aria-hidden="true">VISUAL</span>{title}</div>
-    {children}
-  </figure>
+  return (
+    <figure className="lesson-visual">
+      <div className="visual-label">{title}</div>
+      {children}
+    </figure>
+  );
 }
 
-function KnowledgeCheck({ question, choices, correct, explanation }: { question: string; choices: string[]; correct: number; explanation: string }) {
-  const [answer, setAnswer] = useState<number | null>(() => {
-    try { const saved = sessionStorage.getItem(`hnsw-check-${question}`); return saved === null ? null : Number(saved) } catch { return null }
-  })
-  useEffect(() => { try { if (answer !== null) sessionStorage.setItem(`hnsw-check-${question}`, String(answer)) } catch { /* Storage is optional. */ } }, [answer, question])
-  return <div className="knowledge-check"><b>{question}</b><div className="row">{choices.map((choice, i) => <button className="button compact" key={choice} aria-pressed={answer === i} onClick={() => setAnswer(i)}>{choice}</button>)}</div>{answer !== null && <p role="status">{answer === correct ? 'Yes. ' : 'Try that idea again: '}{explanation}</p>}</div>
+const LINEAR_SCAN_NODES = [...EF_GRAPH.nodes.values()];
+const LINEAR_SCAN_NEAREST = LINEAR_SCAN_NODES.reduce((best, n) =>
+  distance(n.vec, EF_QUERY, "euclidean") <
+  distance(best.vec, EF_QUERY, "euclidean")
+    ? n
+    : best,
+);
+
+function LinearScanVisual() {
+  return (
+    <Visual title="Checking every stored item, one by one">
+      <div className="scan-header" aria-hidden="true">
+        <span className="scan-step" />
+        <span className="scan-bar" style={{ visibility: "hidden" }} />
+        <span className="scan-score-label">distance from query</span>
+      </div>
+      <ol
+        className="scan-list"
+        aria-label="Comparing the request with every stored item in turn"
+      >
+        {LINEAR_SCAN_NODES.map((n, i) => (
+          <li
+            key={n.id}
+            className={
+              n.id === LINEAR_SCAN_NEAREST.id ? "scan-match" : undefined
+            }
+          >
+            <span className="scan-step">{i + 1}</span>
+            <span className="scan-bar" aria-hidden="true" />
+            <span className="scan-score">
+              {distance(n.vec, EF_QUERY, "euclidean").toFixed(2)}
+            </span>
+            {n.id === LINEAR_SCAN_NEAREST.id && (
+              <span className="scan-result">✓ closest</span>
+            )}
+          </li>
+        ))}
+      </ol>
+      <figcaption>
+        Comparing the request against every stored item always finds the true
+        closest one — the cost is checking all of them, one at a time.
+      </figcaption>
+    </Visual>
+  );
 }
 
-function RepresentationVisual() {
-  return <svg className="representation-plot" viewBox="0 0 360 250" role="img" aria-labelledby="representation-title representation-desc">
-    <title id="representation-title">A song query plotted near its closest stored song</title>
-    <desc id="representation-desc">Quiet Piano is low energy and highly acoustic. Dance Beat is high energy and less acoustic. The soft acoustic query appears close to Quiet Piano, so Quiet Piano is the closest match.</desc>
-    <g className="representation-axis">
-      <path d="M54 28v174h278"/>
-      <path d="m54 28-5 9m5-9 5 9M332 202l-9-5m9 5-9 5"/>
-    </g>
-    <text className="representation-axis-label" x="192" y="233" textAnchor="middle">energy · low → high</text>
-    <text className="representation-axis-label" x="17" y="119" textAnchor="middle" transform="rotate(-90 17 119)">acoustic feel · low → high</text>
-    <path className="representation-match" d="M132 64 106 47"/>
-    <text className="representation-match-label" x="118" y="82" textAnchor="end">closest match</text>
-    <g className="representation-point stored" transform="translate(106 47)">
-      <circle r="9"/><text x="14" y="-9">Quiet Piano</text><text className="vector-values" x="14" y="7">[0.2, 0.9]</text>
-    </g>
-    <g className="representation-point stored" transform="translate(294 184)">
-      <circle r="9"/><text x="-14" y="-10" textAnchor="end">Dance Beat</text><text className="vector-values" x="-14" y="7" textAnchor="end">[0.9, 0.1]</text>
-    </g>
-    <g className="representation-point query" transform="translate(132 64)">
-      <circle r="11"/><text x="14" y="24">query</text><text className="vector-values" x="14" y="40">[0.3, 0.8]</text>
-    </g>
-  </svg>
-}
+type MiniNode = { id: string; x: number; y: number };
 
-function BruteForceVisual() {
-  const points = [
-    { x: 84, y: 66, d: '5.8' }, { x: 168, y: 184, d: '4.1' }, { x: 270, y: 84, d: '2.7' },
-    { x: 442, y: 72, d: '1.9' }, { x: 548, y: 186, d: '3.4' }, { x: 640, y: 92, d: '4.9' },
-  ]
-  return <Visual title="Exact search checks every stored vector">
-    <svg viewBox="0 0 720 250" role="img" aria-labelledby="brute-title brute-desc">
-      <title id="brute-title">A query compared with all six stored vectors</title>
-      <desc id="brute-desc">Six lines connect query q to six stored dots, showing that brute force computes one distance for every stored vector.</desc>
-      <g className="brute-lines">{points.map((p, i) => <line key={i} x1="360" y1="132" x2={p.x} y2={p.y}/>)}</g>
-      <g className="visual-node">{points.map((p, i) => <g key={i}><circle cx={p.x} cy={p.y} r="9"/><text x={p.x} y={p.y - 18} textAnchor="middle">d = {p.d}</text></g>)}</g>
-      <g className="query-mark"><path d="M351 123l18 18m0-18-18 18"/></g><text className="visual-caption" x="376" y="128">query q</text>
-      <text className="visual-caption" x="360" y="230" textAnchor="middle">6 stored vectors → 6 distance calculations → sort → return k</text>
-    </svg>
-    <figcaption>Every line in the picture is work. With one million stored vectors, one query needs one million distance calculations before sorting the answers.</figcaption>
-  </Visual>
-}
+// Three dots sit on the top layer, scattered rather than lined up, each
+// roughly above the loose bottom-layer cluster it also belongs to (same id =
+// same dot, drawn again one layer down). Both layers share one plane shape
+// (same width, same skew) so they read as the same size, seen from the same
+// angle.
+const CLUSTER_TOP: MiniNode[] = [
+  { id: "t1", x: 90, y: 55 },
+  { id: "t2", x: 200, y: 95 },
+  { id: "t3", x: 310, y: 60 },
+];
 
-function ConnectionVisual() {
-  return <Visual title="Useful links form a searchable map">
-    <svg viewBox="0 0 720 270" role="img" aria-labelledby="connect-title connect-desc">
-      <title id="connect-title">Nearby vectors connected into two neighborhoods with a bridge</title>
-      <desc id="connect-desc">Blue nodes form one neighborhood, violet nodes form another, and one longer green link keeps the two groups reachable.</desc>
-      <g className="cluster-halo"><ellipse cx="215" cy="137" rx="146" ry="88"/><ellipse cx="520" cy="137" rx="132" ry="88"/></g>
-      <g className="visual-edge"><path d="M105 128 164 82 226 117 279 73 327 135 250 188 175 192 105 128M164 82l62 35 24 71M226 117l101 18M175 192l75-4M421 104l69-42 73 44 69-20M421 104l38 76 84 24 89-118M459 180l84 24 20-98M490 62l73 44"/></g>
-      <path className="kept-edge" d="M327 135 421 104"/>
-      <g className="visual-node"><circle cx="105" cy="128" r="8"/><circle cx="164" cy="82" r="8"/><circle cx="226" cy="117" r="8"/><circle cx="279" cy="73" r="8"/><circle cx="327" cy="135" r="8"/><circle cx="250" cy="188" r="8"/><circle cx="175" cy="192" r="8"/></g>
-      <g className="visual-node secondary"><circle cx="421" cy="104" r="8"/><circle cx="490" cy="62" r="8"/><circle cx="563" cy="106" r="8"/><circle cx="632" cy="86" r="8"/><circle cx="459" cy="180" r="8"/><circle cx="543" cy="204" r="8"/></g>
-      <text className="visual-caption" x="168" y="245">similar songs</text><text className="visual-caption" x="495" y="245">another neighborhood</text><text className="visual-caption" x="342" y="103">bridge</text>
-    </svg>
-    <figcaption>Short links make local movement easy. The green bridge is longer, but it prevents the search from being trapped in one neighborhood. HNSW therefore values a small set of nearby links that also point in useful directions.</figcaption>
-  </Visual>
+const CLUSTER_BOTTOM: MiniNode[] = [
+  { id: "t1", x: 90, y: 200 },
+  { id: "m1", x: 65, y: 232 },
+  { id: "m2", x: 115, y: 245 },
+  { id: "t2", x: 200, y: 225 },
+  { id: "m3", x: 175, y: 262 },
+  { id: "m4", x: 225, y: 195 },
+  { id: "t3", x: 305, y: 210 },
+  { id: "m5", x: 278, y: 245 },
+  { id: "m6", x: 322, y: 178 },
+];
+
+// One shared skew for both layer planes, so they look like the same floor
+// seen from the same angle, just stacked at different heights. Sized wide
+// enough that both query marks land inside their plane, not past its edge.
+const PLANE_WIDTH = 320;
+const PLANE_SKEW = { dx: 18, dy: 105 };
+function planePath(x: number, y: number) {
+  return `M${x},${y} L${x + PLANE_WIDTH},${y} L${x + PLANE_WIDTH + PLANE_SKEW.dx},${y + PLANE_SKEW.dy} L${x + PLANE_SKEW.dx},${y + PLANE_SKEW.dy} Z`;
+}
+const TOP_PLANE = { x: 30, y: 25 };
+const BOTTOM_PLANE = { x: 30, y: 170 };
+
+const CLUSTER_TOP_EDGES: Array<[string, string]> = [
+  ["t1", "t2"],
+  ["t2", "t3"],
+];
+
+const CLUSTER_BOTTOM_EDGES: Array<[string, string]> = [
+  ["t1", "m1"],
+  ["t1", "m2"],
+  ["m1", "m2"],
+  ["t2", "m3"],
+  ["t2", "m4"],
+  ["m3", "m4"],
+  ["t3", "m5"],
+  ["t3", "m6"],
+  ["m5", "m6"],
+  ["t1", "t2"],
+  ["t2", "t3"],
+];
+
+const QUERY_TOP = { x: 338, y: 88 };
+const QUERY_BOTTOM = { x: 345, y: 200 };
+const GRAPH_SEARCH_RESULT_ID = "m6";
+const GRAPH_SEARCH_BOTTOM_BY_ID = new Map(
+  CLUSTER_BOTTOM.map((n) => [n.id, n] as const),
+);
+
+function GraphSearchVisual() {
+  const resultNode = GRAPH_SEARCH_BOTTOM_BY_ID.get(GRAPH_SEARCH_RESULT_ID)!;
+  const lastTop = CLUSTER_TOP[CLUSTER_TOP.length - 1];
+  const lastTopBottom = GRAPH_SEARCH_BOTTOM_BY_ID.get(lastTop.id)!;
+  return (
+    <Visual title="A few shortcuts above, every dot below">
+      <svg
+        viewBox="-30 -20 430 340"
+        role="img"
+        aria-labelledby="graph-search-title graph-search-desc"
+      >
+        <title id="graph-search-title">
+          A search crossing a small top layer into the clustered bottom layer
+        </title>
+        <desc id="graph-search-desc">
+          Two planes of the same size and angle give the layers depth. The
+          bottom layer holds every dot in a few loose clusters, with no boundary
+          drawn around them. The top layer holds just three scattered dots, each
+          above one cluster. Dashed lines connect each top dot to the same dot
+          below, and another dashed line connects the query mark shown in both
+          layers. A highlighted route starts at one top dot, crosses the top
+          layer, drops into the bottom layer, and ends at the dot nearest the
+          query.
+        </desc>
+        <g transform="rotate(-6 199 150)">
+          <g className="layer-plane">
+            <path d={planePath(TOP_PLANE.x, TOP_PLANE.y)} />
+            <path d={planePath(BOTTOM_PLANE.x, BOTTOM_PLANE.y)} />
+          </g>
+          <g className="layer-label">
+            <text x={-5} y={50}>
+              L 1
+            </text>
+            <text x={-5} y={195}>
+              L 0
+            </text>
+          </g>
+          <g className="layer-vertical">
+            {CLUSTER_TOP.map((t) => {
+              const b = GRAPH_SEARCH_BOTTOM_BY_ID.get(t.id)!;
+              return (
+                <line key={t.id} x1={t.x} y1={t.y + 5} x2={b.x} y2={b.y - 4} />
+              );
+            })}
+            <line
+              x1={QUERY_TOP.x}
+              y1={QUERY_TOP.y + 6}
+              x2={QUERY_BOTTOM.x}
+              y2={QUERY_BOTTOM.y - 6}
+            />
+          </g>
+          <g className="visual-edge">
+            {CLUSTER_BOTTOM_EDGES.map(([a, b]) => {
+              const av = GRAPH_SEARCH_BOTTOM_BY_ID.get(a)!,
+                bv = GRAPH_SEARCH_BOTTOM_BY_ID.get(b)!;
+              return (
+                <line
+                  key={`b-${a}-${b}`}
+                  x1={av.x}
+                  y1={av.y}
+                  x2={bv.x}
+                  y2={bv.y}
+                />
+              );
+            })}
+            {CLUSTER_TOP_EDGES.map(([a, b]) => {
+              const av = CLUSTER_TOP.find((n) => n.id === a)!,
+                bv = CLUSTER_TOP.find((n) => n.id === b)!;
+              return (
+                <line
+                  key={`t-${a}-${b}`}
+                  x1={av.x}
+                  y1={av.y}
+                  x2={bv.x}
+                  y2={bv.y}
+                />
+              );
+            })}
+          </g>
+          <g className="visual-node">
+            {CLUSTER_BOTTOM.map((n) => (
+              <circle key={`b-${n.id}`} cx={n.x} cy={n.y} r={4} />
+            ))}
+            {CLUSTER_TOP.map((n) => (
+              <circle key={`t-${n.id}`} cx={n.x} cy={n.y} r={5} />
+            ))}
+          </g>
+          <path
+            className="search-route"
+            d={`M${CLUSTER_TOP[0].x},${CLUSTER_TOP[0].y} L${CLUSTER_TOP[1].x},${CLUSTER_TOP[1].y} L${lastTop.x},${lastTop.y} L${lastTopBottom.x},${lastTopBottom.y} L${resultNode.x},${resultNode.y}`}
+          />
+          <g className="route-points">
+            <circle cx={CLUSTER_TOP[0].x} cy={CLUSTER_TOP[0].y} r={5} />
+            <circle cx={CLUSTER_TOP[1].x} cy={CLUSTER_TOP[1].y} r={5} />
+            <circle cx={lastTop.x} cy={lastTop.y} r={5} />
+            <circle cx={lastTopBottom.x} cy={lastTopBottom.y} r={5} />
+            <circle
+              className="result"
+              cx={resultNode.x}
+              cy={resultNode.y}
+              r={6}
+            />
+          </g>
+          <text
+            className="visual-caption"
+            x={CLUSTER_TOP[0].x}
+            y={CLUSTER_TOP[0].y - 12}
+            textAnchor="middle"
+          >
+            start
+          </text>
+          <g className="query-mark">
+            <path
+              d={`M${QUERY_TOP.x - 6} ${QUERY_TOP.y - 6}l12 12m0-12-12 12`}
+            />
+            <path
+              d={`M${QUERY_BOTTOM.x - 6} ${QUERY_BOTTOM.y - 6}l12 12m0-12-12 12`}
+            />
+          </g>
+          <text
+            className="visual-caption"
+            x={QUERY_TOP.x}
+            y={QUERY_TOP.y - 10}
+            textAnchor="middle"
+          >
+            query
+          </text>
+        </g>
+      </svg>
+      <figcaption>
+        Only three dots sit on the top layer, each above one loose cluster
+        below. A dashed line marks a dot that appears in both layers. The route
+        crosses the top layer, drops down, and lands on the dot nearest the
+        request.
+      </figcaption>
+    </Visual>
+  );
 }
 
 function LayersVisual() {
-  return <Visual title="Upper layers are express lanes">
-    <svg viewBox="0 0 720 310" role="img" aria-labelledby="layers-title layers-desc">
-      <title id="layers-title">Three HNSW graph layers</title>
-      <desc id="layers-desc">A search makes one long jump on a sparse top layer, descends through a middle layer, and finishes with detailed links on layer zero.</desc>
-      <g className="layer-plane"><path d="m90 38 525 0 48 45-525 0Z"/><path d="m70 126 545 0 48 45-545 0Z"/><path d="m50 220 565 0 48 45-565 0Z"/></g>
-      <g className="layer-label"><text x="30" y="64">L2</text><text x="30" y="152">L1</text><text x="30" y="246">L0</text></g>
-      <g className="visual-edge"><path d="M176 61h277M147 149l112-4 114 6 138-3M115 244l75-7 72 14 75-12 76 18 77-15 83 12"/></g>
-      <g className="visual-node"><circle cx="176" cy="61" r="7"/><circle cx="453" cy="61" r="7"/><circle cx="147" cy="149" r="6"/><circle cx="259" cy="145" r="6"/><circle cx="373" cy="151" r="6"/><circle cx="511" cy="148" r="6"/><circle cx="115" cy="244" r="5"/><circle cx="190" cy="237" r="5"/><circle cx="262" cy="251" r="5"/><circle cx="337" cy="239" r="5"/><circle cx="413" cy="257" r="5"/><circle cx="490" cy="242" r="5"/><circle cx="573" cy="254" r="5"/></g>
-      <g className="layer-vertical"><path d="M176 68 147 142M453 68l58 74M147 155l-32 83M259 151l3 94M373 157l40 94M511 154l62 94"/></g>
-      <g className="visual-caption"><text x="176" y="46">A</text><text x="453" y="46">D</text><text x="147" y="134">A</text><text x="511" y="133">D</text><text x="115" y="229">A</text><text x="573" y="239">D</text></g>
-      <path className="search-route" d="M176 61h277l58 87-138 3 40 106 77-15"/>
-      <g className="route-points"><circle cx="176" cy="61" r="8"/><circle cx="453" cy="61" r="8"/><circle cx="511" cy="148" r="8"/><circle cx="373" cy="151" r="8"/><circle cx="413" cy="257" r="8"/><circle className="result" cx="490" cy="242" r="9"/></g>
-      <g className="query-mark"><path d="m530 219 14 14m0-14-14 14"/></g><text className="visual-caption" x="555" y="211">query</text>
-    </svg>
-    <figcaption>Read the blue route from top to bottom. The same item can appear on several layers—labels A and D show those copies. Every item is on L0; only a random few are promoted to L1 and L2.</figcaption>
-  </Visual>
+  return (
+    <Visual title="High layers make long jumps; the bottom layer finishes the search">
+      <svg
+        viewBox="0 0 720 300"
+        role="img"
+        aria-labelledby="layers-title layers-desc"
+      >
+        <title id="layers-title">A three-layer search route</title>
+        <desc id="layers-desc">
+          The search moves across a small overview layer, descends through a
+          middle layer, and finishes among all dots on the bottom layer.
+        </desc>
+        <g className="layer-plane">
+          <path d="m90 32 525 0 48 45-525 0Z" />
+          <path d="m70 120 545 0 48 45-545 0Z" />
+          <path d="m50 214 565 0 48 45-565 0Z" />
+        </g>
+        <g className="layer-label">
+          <text x="15" y="58">
+            Overview
+          </text>
+          <text x="15" y="146">
+            Middle
+          </text>
+          <text x="15" y="240">
+            All dots
+          </text>
+        </g>
+        <g className="visual-edge">
+          <path d="M176 55h277M147 143l112-4 114 6 138-3M115 238l75-7 72 14 75-12 76 18 77-15 83 12" />
+        </g>
+        <g className="visual-node">
+          <circle cx="176" cy="55" r="7" />
+          <circle cx="453" cy="55" r="7" />
+          <circle cx="147" cy="143" r="6" />
+          <circle cx="259" cy="139" r="6" />
+          <circle cx="373" cy="145" r="6" />
+          <circle cx="511" cy="142" r="6" />
+          <circle cx="115" cy="238" r="5" />
+          <circle cx="190" cy="231" r="5" />
+          <circle cx="262" cy="245" r="5" />
+          <circle cx="337" cy="233" r="5" />
+          <circle cx="413" cy="251" r="5" />
+          <circle cx="490" cy="236" r="5" />
+          <circle cx="573" cy="248" r="5" />
+        </g>
+        <g className="layer-vertical">
+          <path d="M176 62 147 136M453 62l58 74M147 149l-32 83M259 145l3 94M373 151l40 94M511 148l62 94" />
+        </g>
+        <path
+          className="search-route"
+          d="M176 55h277l58 87-138 3 40 106 77-15"
+        />
+        <g className="route-points">
+          <circle cx="176" cy="55" r="8" />
+          <circle cx="453" cy="55" r="8" />
+          <circle cx="511" cy="142" r="8" />
+          <circle cx="373" cy="145" r="8" />
+          <circle cx="413" cy="251" r="8" />
+          <circle className="result" cx="490" cy="236" r="9" />
+        </g>
+      </svg>
+      <figcaption>
+        Every dot lives on the bottom layer. A few also appear above it,
+        creating shortcuts—like highways above neighborhood streets.
+      </figcaption>
+    </Visual>
+  );
 }
 
-function SearchVisual() {
-  return <Visual title="Move closer on one layer, then descend">
-    <svg viewBox="0 0 720 270" role="img" aria-labelledby="search-title search-desc">
-      <title id="search-title">Four stages of greedy search across two layers</title>
-      <desc id="search-desc">Every node on layer one has a corresponding copy on layer zero. Step 1 starts on layer one, step 2 moves to a closer neighbor, step 3 stops at the local best node, and step 4 descends to that node's layer-zero copy.</desc>
-      <g className="layer-plane"><path d="m75 38 525 0 42 74-525 0Z"/><path d="m75 158 525 0 42 74-525 0Z"/></g>
-      <g className="layer-label"><text x="35" y="80">L1</text><text x="35" y="201">L0</text></g>
-      <g className="layer-vertical"><path d="M135 87v92M275 78v92M366 68v92M445 96v92"/></g>
-      <g className="visual-edge"><path d="M135 73 275 64 445 82M275 64l91-10M135 193l140-9 91-10 79 28 75-12 80 20M275 184l55 36M366 174l79 28M445 202l105 13M520 190l80 20"/></g>
-      <g className="visual-node"><circle cx="366" cy="54" r="7"/><circle cx="135" cy="193" r="7"/><circle cx="275" cy="184" r="7"/><circle cx="366" cy="174" r="7"/><circle cx="330" cy="220" r="7"/><circle cx="520" cy="190" r="7"/><circle cx="550" cy="215" r="7"/><circle cx="600" cy="210" r="7"/></g>
-      <path className="search-route" d="M135 73 275 64 445 82"/>
-      <path className="layer-descent" d="M445 98v90"/>
-      <g className="route-step"><circle cx="135" cy="73" r="14"/><text x="135" y="77">1</text><circle cx="275" cy="64" r="14"/><text x="275" y="68">2</text><circle className="local-best" cx="445" cy="82" r="14"/><text x="445" y="86">3</text><circle cx="445" cy="202" r="14"/><text x="445" y="206">4</text></g>
-      <g className="route-step-label"><text x="135" y="102">start</text><text x="275" y="102">closer</text><text className="side" x="465" y="105">local best</text><text className="side" x="465" y="231">continue on L0</text></g>
-      <g className="query-mark"><path d="m620 143 16 16m0-16-16 16"/></g><text className="visual-caption" x="645" y="157">q</text>
-    </svg>
-    <figcaption>Every L1 node also appears on L0; gray dotted lines pair those copies. <b>1</b> starts on L1, <b>2</b> moves closer, <b>3</b> is the layer’s local best, and <b>4</b> is that same node on L0.</figcaption>
-  </Visual>
+const KEPT_ROUTE_WIDTHS = [1, 2];
+const KEPT_ROUTE_EDGES = edgesOnLayer(EF_GRAPH, 0);
+const KEPT_ROUTE_NODES = [...EF_GRAPH.nodes.values()];
+const KEPT_ROUTE_NEAREST = KEPT_ROUTE_NODES.reduce((best, n) =>
+  distance(n.vec, EF_QUERY, "euclidean") <
+  distance(best.vec, EF_QUERY, "euclidean")
+    ? n
+    : best,
+);
+
+function KeptRoutesVisual() {
+  const panels = KEPT_ROUTE_WIDTHS.map((width) => {
+    const { trace } = efSearchExample(width);
+    return {
+      width,
+      visited: trace.steps.at(-1)!.vis.visited as number[],
+      result: trace.results[0].id,
+    };
+  });
+  return (
+    <Visual title="Keeping one extra route can change the outcome">
+      <div className="route-compare">
+        {panels.map(({ width, visited, result }) => (
+          <div className="route-panel" key={width}>
+            <svg
+              viewBox="0 0 340 220"
+              role="img"
+              aria-label={`Search keeping ${width} route${width === 1 ? "" : "s"} open`}
+            >
+              <g className="visual-edge">
+                {KEPT_ROUTE_EDGES.map(([a, b]) => {
+                  const av = EF_GRAPH.nodes.get(a)!.vec,
+                    bv = EF_GRAPH.nodes.get(b)!.vec;
+                  return (
+                    <line
+                      key={`${a}-${b}`}
+                      x1={av[0]}
+                      y1={av[1]}
+                      x2={bv[0]}
+                      y2={bv[1]}
+                      className={
+                        visited.includes(a) && visited.includes(b)
+                          ? "kept-edge"
+                          : undefined
+                      }
+                    />
+                  );
+                })}
+              </g>
+              {KEPT_ROUTE_NODES.map((n) => (
+                <g
+                  key={n.id}
+                  className={`visual-node${n.id === result ? " route-result" : visited.includes(n.id) ? "" : " route-unseen"}`}
+                  transform={`translate(${n.vec[0]} ${n.vec[1]})`}
+                >
+                  <circle r={n.id === result ? 11 : 8} />
+                  <text className="visual-caption" y={-14} textAnchor="middle">
+                    {n.label}
+                  </text>
+                </g>
+              ))}
+              <g className="query-mark">
+                <path
+                  d={`M${EF_QUERY[0] - 7} ${EF_QUERY[1] - 7}l14 14m0-14-14 14`}
+                />
+              </g>
+            </svg>
+            <p>
+              <b>
+                Keep {width} route{width === 1 ? "" : "s"} open
+              </b>{" "}
+              → finds {EF_GRAPH.nodes.get(result)!.label}
+              {result === KEPT_ROUTE_NEAREST.id
+                ? ", the closest dot"
+                : ", not the closest dot"}
+              .
+            </p>
+          </div>
+        ))}
+      </div>
+      <figcaption>
+        Same dots, same target — only the number of open routes changes, and
+        with it, whether the search finds the truly closest one.
+      </figcaption>
+    </Visual>
+  );
 }
 
-function BuildVisual() {
-  return <Visual title="Insert = choose a layer, search, then connect">
-    <svg viewBox="0 0 720 250" role="img" aria-labelledby="build-title build-desc">
-      <title id="build-title">Three stages of inserting a node into HNSW</title>
-      <desc id="build-desc">A random draw chooses node height, an existing graph search finds candidates, and the new node keeps a small diverse set of links.</desc>
-      <g className="stage-divider"><path d="M240 20v205M480 20v205"/></g>
-      <g className="stage-number"><text x="28" y="39">01</text><text x="268" y="39">02</text><text x="508" y="39">03</text></g>
-      <g className="stage-title"><text x="28" y="64">Choose a height</text><text x="268" y="64">Find candidates</text><text x="508" y="64">Keep useful links</text></g>
-      <g className="height-bars"><rect x="52" y="159" width="24" height="35" rx="3"/><rect x="91" y="125" width="24" height="69" rx="3"/><rect x="130" y="159" width="24" height="35" rx="3"/><rect className="chosen" x="169" y="90" width="24" height="104" rx="3"/></g>
-      <g className="visual-edge"><path d="M280 157 327 105 378 153 434 112M327 105l107 7M378 153l56-41"/><path d="M520 159 577 108 632 151M577 108l73-27M577 108l55 43"/></g>
-      <g className="visual-node"><circle cx="280" cy="157" r="7"/><circle cx="327" cy="105" r="7"/><circle cx="378" cy="153" r="7"/><circle cx="434" cy="112" r="7"/><circle cx="520" cy="159" r="7"/><circle cx="577" cy="108" r="7"/><circle cx="632" cy="151" r="7"/><circle cx="650" cy="81" r="7"/></g>
-      <g className="new-node"><circle cx="390" cy="87" r="9"/><circle cx="592" cy="184" r="9"/></g>
-      <g className="candidate-edge"><path d="M390 87 327 105M390 87l44 25M390 87l-12 66"/></g>
-      <g className="kept-edge"><path d="M592 184 520 159M592 184l40-33M592 184l58-103"/></g>
-      <text className="visual-caption" x="28" y="220">most nodes stay on L0</text><text className="visual-caption" x="268" y="220">search the existing map</text><text className="visual-caption" x="508" y="220">links work both ways</text>
-    </svg>
-    <figcaption>The new blue dot first acts like a query. Orange lines are possible links; green lines are the small, diverse set it finally keeps.</figcaption>
-  </Visual>
+function InsertVisual() {
+  return (
+    <div className="learn-flow" aria-label="The three parts of inserting a dot">
+      <div>
+        <span>1</span>
+        <b>Search</b>
+        <p>Use the existing graph to find the new dot’s neighborhood.</p>
+      </div>
+      <div>
+        <span>2</span>
+        <b>Connect</b>
+        <p>Link the new dot to a few useful nearby dots.</p>
+      </div>
+      <div>
+        <span>3</span>
+        <b>Tidy</b>
+        <p>Trim crowded links so the graph stays easy to navigate.</p>
+      </div>
+    </div>
+  );
 }
 
-function NeighborChoiceVisual() {
-  return <figure className="neighbor-choice-visual">
-    <svg viewBox="0 0 720 188" role="img" aria-labelledby="neighbor-choice-title neighbor-choice-desc">
-      <title id="neighbor-choice-title">Closest links compared with diverse links</title>
-      <desc id="neighbor-choice-desc">With M equal to two, the closest-only rule connects N to P and R on its right. The diversity heuristic connects N to P on its right and L on its left, pruning the redundant link to R.</desc>
-      <path className="choice-divider" d="M360 8v162"/>
-      <g className="choice-heading"><text x="24" y="22">Choose the nearest two</text><text x="384" y="22">Choose two useful directions</text></g>
-      <g className="choice-link nearest"><path d="M180 106Q210 48 240 106M180 106Q225 27 270 106"/></g>
-      <g className="choice-link diverse"><path d="M540 106Q570 48 600 106M540 106Q480 31 420 106"/></g>
-      <g className="choice-link pruned"><path d="M540 106Q585 27 630 106"/></g>
-      <g className="choice-axis"><path d="M42 106h252M402 106h252"/></g>
-      <g className="choice-node"><circle cx="60" cy="106" r="8"/><circle className="base" cx="180" cy="106" r="10"/><circle cx="240" cy="106" r="8"/><circle cx="270" cy="106" r="8"/><circle cx="420" cy="106" r="8"/><circle className="base" cx="540" cy="106" r="10"/><circle cx="600" cy="106" r="8"/><circle className="pruned-node" cx="630" cy="106" r="8"/></g>
-      <g className="choice-node-label"><text x="60" y="133">L · −4</text><text x="180" y="133">N · 0</text><text x="240" y="133">P · 2</text><text x="270" y="133">R · 3</text><text x="420" y="133">L · −4</text><text x="540" y="133">N · 0</text><text x="600" y="133">P · 2</text><text x="630" y="133">R · 3</text></g>
-      <g className="choice-result"><text x="180" y="176">keeps P + R → both point right</text><text x="540" y="176">keeps P + L → reaches both ways</text></g>
-      <g className="choice-pruned-mark"><path d="m650 58 10 10m0-10-10 10"/><text x="645" y="48">R pruned</text></g>
-    </svg>
-    <figcaption>Both sides obey <ParameterLink name="M"/> = 2. The heuristic keeps P, rejects R because P already covers the right side, then keeps L to open a route to the left.</figcaption>
-  </figure>
+function LevelDrawVisual() {
+  return (
+    <div
+      className="learn-flow"
+      aria-label="How a new dot picks which layers it joins"
+    >
+      <div>
+        <span>1</span>
+        <b>Start on the bottom layer</b>
+        <p>Every new dot lands here — this is where every dot lives.</p>
+      </div>
+      <div>
+        <span>2</span>
+        <b>Flip a coin</b>
+        <p>Heads, it climbs one layer higher. Tails, it stops right here.</p>
+      </div>
+      <div>
+        <span>3</span>
+        <b>Keep flipping</b>
+        <p>
+          Every win earns another flip. Most dots stop after the very first one.
+        </p>
+      </div>
+    </div>
+  );
 }
 
 function DeleteVisual() {
-  return <Visual title="Same graph, two deletion strategies">
-    <svg viewBox="0 0 720 280" role="img" aria-labelledby="delete-title delete-desc">
-      <title id="delete-title">Soft and hard deletion compared</title>
-      <desc id="delete-desc">Both panels begin with the same center node and four neighbors. Soft delete crosses out the center but keeps all four original spokes. Hard delete removes the center and its spokes, then adds two selected replacement links between former neighbors.</desc>
-      <g className="stage-divider"><path d="M360 20v235"/></g>
-      <g className="stage-title"><text x="28" y="40">SOFT DELETE</text><text x="388" y="40">HARD DELETE</text></g>
-      <g className="visual-edge">
-        <path d="M180 75 275 145M180 215 85 145M180 145 180 75M180 145 275 145M180 145 180 215M180 145 85 145"/>
-        <path d="M540 75 635 145M540 215 445 145"/>
-      </g>
-      <g className="repair-edge"><path d="M540 75 445 145M635 145 540 215"/></g>
-      <g className="visual-node">
-        <circle cx="180" cy="75" r="8"/><circle cx="275" cy="145" r="8"/><circle cx="180" cy="215" r="8"/><circle cx="85" cy="145" r="8"/>
-        <circle cx="540" cy="75" r="8"/><circle cx="635" cy="145" r="8"/><circle cx="540" cy="215" r="8"/><circle cx="445" cy="145" r="8"/>
-      </g>
-      <g className="deleted-node"><circle cx="180" cy="145" r="14"/><path d="m170 135 20 20m0-20-20 20"/></g>
-      <g className="missing-node"><circle cx="540" cy="145" r="14"/></g>
-      <text className="visual-caption" x="180" y="252" textAnchor="middle">tombstoned · all 4 old spokes remain</text>
-      <text className="visual-caption" x="540" y="252" textAnchor="middle">removed · 2 selected repair links added</text>
-    </svg>
-    <figcaption>Both sides start from the same graph. Gray lines are original edges. Soft delete keeps the tombstoned node and all four spokes. Hard delete removes the node and those spokes; the two green links are selected best-effort repairs.</figcaption>
-  </Visual>
-}
-
-function UpdateVisual() {
-  return <Visual title="Same move, two ways to choose replacement links">
-    <div className="update-compare">
-      <svg viewBox="0 0 360 332" role="img" aria-labelledby="update-reinsert-title update-reinsert-desc">
-        <title id="update-reinsert-title">Reinsert after a large move</title>
-        <desc id="update-reinsert-desc">Node N moves from the left cluster to the right cluster. The demo removes its old links, searches broadly, and connects it to nearby candidates found around the new position.</desc>
-        <text className="stage-title" x="180" y="32" textAnchor="middle">REINSERT · BROAD SEARCH</text>
-        <text className="visual-caption" x="180" y="49" textAnchor="middle">delete old links, then search from the graph entry</text>
-        <g className="update-old-edge"><path d="M90 158 48 102M90 158 45 218M90 158 130 92M90 158 134 224"/></g>
-        <g className="visual-node update-old-pool"><circle cx="48" cy="102" r="8"/><circle cx="45" cy="218" r="8"/><circle cx="130" cy="92" r="8"/><circle cx="134" cy="224" r="8"/></g>
-        <circle className="update-ghost" cx="90" cy="158" r="11"/>
-        <text className="update-position-label" x="90" y="181" textAnchor="middle">old N</text>
-        <path className="update-move-arrow" d="M113 158h96m0 0-10-7m10 7-10 7"/>
-        <text className="update-arrow-label" x="161" y="146" textAnchor="middle">vector moves</text>
-        <g className="kept-edge"><path d="M234 158 274 96M234 158 308 153M234 158 280 221"/></g>
-        <g className="update-nearby"><circle cx="274" cy="96" r="8"/><circle cx="308" cy="153" r="8"/><circle cx="280" cy="221" r="8"/></g>
-        <g className="update-focus"><circle cx="234" cy="158" r="12"/><text x="234" y="162" textAnchor="middle">N</text></g>
-        <text className="update-position-label" x="234" y="181" textAnchor="middle">new N</text>
-        <text className="update-outcome good" x="180" y="278" textAnchor="middle">✓ links toward nearby candidates found by the broad search</text>
-        <text className="visual-caption" x="180" y="298" textAnchor="middle">more search work · no exact-neighbor guarantee</text>
-      </svg>
-      <svg viewBox="0 0 360 332" role="img" aria-labelledby="update-local-title update-local-desc">
-        <title id="update-local-title">In-place repair after the same move</title>
-        <desc id="update-local-desc">Node N makes the same move, but the demo only considers its old two-hop pool. Its replacement links can point back toward the old region while nearer nodes remain unlinked.</desc>
-        <text className="stage-title" x="180" y="32" textAnchor="middle">IN PLACE · LOCAL POOL</text>
-        <text className="visual-caption" x="180" y="49" textAnchor="middle">keep the level, inspect only the old two-hop pool</text>
-        <g className="update-old-edge"><path d="M90 158 48 102M90 158 45 218M90 158 130 92M90 158 134 224"/></g>
-        <g className="visual-node update-old-pool"><circle cx="48" cy="102" r="8"/><circle cx="45" cy="218" r="8"/><circle cx="130" cy="92" r="8"/><circle cx="134" cy="224" r="8"/></g>
-        <circle className="update-ghost" cx="90" cy="158" r="11"/>
-        <text className="update-position-label" x="90" y="181" textAnchor="middle">old N</text>
-        <path className="update-move-arrow" d="M113 158h96m0 0-10-7m10 7-10 7"/>
-        <text className="update-arrow-label" x="161" y="146" textAnchor="middle">vector moves</text>
-        <g className="update-local-edge"><path d="M234 158 130 92M234 158 134 224"/></g>
-        <g className="update-nearby"><circle cx="274" cy="96" r="8"/><circle cx="308" cy="153" r="8"/><circle cx="280" cy="221" r="8"/></g>
-        <g className="update-focus"><circle cx="234" cy="158" r="12"/><text x="234" y="162" textAnchor="middle">N</text></g>
-        <text className="update-position-label" x="234" y="181" textAnchor="middle">new N</text>
-        <text className="update-unlinked-label" x="296" y="75" textAnchor="middle">nearby candidates outside the pool</text>
-        <text className="update-outcome risky" x="180" y="278" textAnchor="middle">! links may reach back to the old region</text>
-        <text className="visual-caption" x="180" y="298" textAnchor="middle">less work · can miss useful routes after a large move</text>
-      </svg>
+  return (
+    <div
+      className="learn-flow"
+      aria-label="The three parts of soft-deleting a dot"
+    >
+      <div>
+        <span>1</span>
+        <b>Mark</b>
+        <p>Flag the dot as deleted instead of erasing it immediately.</p>
+      </div>
+      <div>
+        <span>2</span>
+        <b>Hide</b>
+        <p>Stop returning the dot as a search result.</p>
+      </div>
+      <div>
+        <span>3</span>
+        <b>Keep the route</b>
+        <p>Leave its links in place so searches can still pass through it.</p>
+      </div>
     </div>
-    <figcaption>Both panels show the same move. <b>Reinsert</b> searches more broadly for a new neighborhood. <b>In place</b> skips that search: its candidate pool comes from the old one- and two-hop neighborhood, so its orange dashed links can point back toward the old region. These are possible demo outcomes, not quality guarantees.</figcaption>
-  </Visual>
+  );
 }
 
-export function ExplanationPage({ onOpenPlayground, onStartFirstSearch }: { onOpenPlayground: () => void; onStartFirstSearch?: () => void }) {
-  const page = useRef<HTMLElement>(null)
-  const [chapter, setChapter] = useState('01')
-  const [returnPoint, setReturnPoint] = useState<LearnReturnPoint | null>(readLearnReturnPoint)
-  useEffect(() => {
-    const element = page.current
-    if (!element) return
-    const record = () => {
-      const chapters = Array.from(element.querySelectorAll<HTMLElement>('.guide-chapter'))
-      const active = chapters.filter(c => c.getBoundingClientRect().top < 180).at(-1)
-      setChapter(String(Math.max(0, chapters.indexOf(active!)) + 1).padStart(2, '0'))
-      try { sessionStorage.setItem('hnsw-learn-scroll', String(element.scrollTop)) } catch { /* Storage is optional. */ }
-    }
-    element.addEventListener('scroll', record, { passive: true })
-    const reveal = () => {
-      let id: string
-      try { id = decodeURIComponent(window.location.hash.slice(1)) } catch { return }
-      const target = document.getElementById(id)
-      if (!target) {
-        try { element.scrollTop = Number(sessionStorage.getItem('hnsw-learn-scroll') || 0) } catch { /* Storage is optional. */ }
-        return
-      }
-      let parent: HTMLElement | null = target
-      while (parent) { if (parent instanceof HTMLDetailsElement) parent.open = true; parent = parent.parentElement }
-      target.scrollIntoView({ block: 'start' })
-    }
-    const revealReference = () => { setReturnPoint(readLearnReturnPoint()); reveal() }
-    const frame = window.requestAnimationFrame(revealReference)
-    window.addEventListener('hashchange', revealReference)
-    window.addEventListener('popstate', revealReference)
-    const showReturn = (event: Event) => setReturnPoint((event as CustomEvent<LearnReturnPoint>).detail)
-    window.addEventListener(LEARN_REFERENCE_EVENT, showReturn)
-    return () => {
-      element.removeEventListener('scroll', record)
-      window.cancelAnimationFrame(frame)
-      window.removeEventListener('hashchange', revealReference)
-      window.removeEventListener('popstate', revealReference)
-      window.removeEventListener(LEARN_REFERENCE_EVENT, showReturn)
-    }
-  }, [])
+function ControlCard({ guide }: { guide: ControlGuide }) {
+  return (
+    <details id={guide.id} className="learn-disclosure control-reference">
+      <summary>{guide.label}</summary>
+      <div className="disclosure-content">
+        <p>{guide.plain}</p>
+        <p className="hint">{guide.when}</p>
+        {guide.learnMore && (
+          <a
+            className="control-deep-link"
+            href={guide.learnMore.href}
+            data-learn-reference
+            onClick={followLearnReference}
+          >
+            {guide.learnMore.label} →
+          </a>
+        )}
+      </div>
+    </details>
+  );
+}
 
-  const continueReading = () => {
-    if (!returnPoint) return
-    prepareLearnReturn(returnPoint)
-    setReturnPoint(null)
-    window.history.replaceState({}, '', returnPoint.href)
-    window.dispatchEvent(new PopStateEvent('popstate'))
-  }
-
-  return <main ref={page} className="explanation-page beginner-guide">
-    {returnPoint && <button type="button" className="continue-reading" onClick={continueReading}><span aria-hidden="true">←</span> Continue where you left</button>}
-    <div className="guide-wrap">
-      <header className="guide-hero">
-        <p className="section-kicker">HNSW, from the first problem to the last edge</p>
-        <h1>Learn fast vector search one picture at a time.</h1>
-        <p>Start with the slow, exact solution. Then build the graph, add express-lane layers, search it, and safely change it. Each new symbol is explained before it is used.</p>
-        <div className="landing-actions"><a className="button primary" href="#chapter-problem">Start with the problem →</a><a className="button quiet" href="#parameter-guide">Parameter reference</a></div>
-      </header>
-
-      <div className="guide-layout">
-        <nav className="guide-toc" aria-label="Learn HNSW contents">
-          <span className="toc-label">Chapter {chapter} of 09 · place saved</span>
-          <a href="#chapter-problem"><span>01</span>The problem</a>
-          <a href="#chapter-connect"><span>02</span>Connect vectors</a>
-          <a href="#chapter-layers"><span>03</span>Why layers</a>
-          <a href="#chapter-search"><span>04</span>Search</a>
-          <a href="#chapter-insert"><span>05</span>Insert</a>
-          <a href="#chapter-delete"><span>06</span>Delete</a>
-          <a href="#chapter-update"><span>07</span>Update</a>
-          <a href="#parameter-guide"><span>08</span>Parameters</a>
-          <a href="#algorithm-steps"><span>09</span>Algorithm steps</a>
-        </nav>
-
-        <div className="guide-content">
-          <section id="chapter-problem" className="guide-chapter">
-            <header className="chapter-heading"><span>01</span><div><p className="section-kicker">The problem</p><h2>Find similar items without checking everything.</h2><p>To recommend a song, an app turns every song into a list of numbers describing traits such as energy and acoustic feel. It turns your request into numbers too, then looks for stored lists that are close to it. HNSW helps find those close matches without comparing your request with every stored item.</p></div></header>
-            <div className="lesson-block">
-              <h3>Four words before the first example</h3>
-              <dl className="term-grid compact-terms">
-                <div><dt>Vector (embedding)</dt><dd>A list of numbers describing one stored item.</dd></div>
-                <div><dt>Query · q</dt><dd>The new vector we want matches for.</dd></div>
-                <div><dt>Distance</dt><dd>How far a stored vector is from q. Smaller means more similar.</dd></div>
-                <div><dt><ParameterLink name="k"/></dt><dd>The number of matches to return.</dd></div>
-              </dl>
-              <div className="example-card representation-example"><span>ONE TOY REPRESENTATION</span><h4>From a song to numbers, then back to a song.</h4><div className="representation-layout"><div className="representation-copy"><p><b>1 · Store songs.</b> “Quiet Piano” becomes <code>[0.2, 0.9]</code>: low energy and high acoustic feel. “Dance Beat” becomes <code>[0.9, 0.1]</code>.</p><p><b>2 · Turn the request into numbers.</b> A request for a soft acoustic song becomes query <code>[0.3, 0.8]</code>.</p><p><b>3 · Return the closest item.</b> The query sits near “Quiet Piano”, so that song is the nearest match.</p></div><RepresentationVisual /></div><p className="representation-note">Real embeddings usually contain hundreds of dimensions that do not have simple human-readable names. These two axes are only a small, drawable example.</p></div>
-              <h3 className="lesson-subheading">Brute force is simple and exact</h3>
-              <ol className="explanation-steps">
-                <li><b>Measure.</b><span>Calculate the query’s distance to every stored vector.</span></li>
-                <li><b>Sort.</b><span>Put all stored vectors in nearest-to-farthest order.</span></li>
-                <li><b>Return.</b><span>Take the first <ParameterLink name="k"/> items.</span></li>
-                <li><b>Repeat.</b><span>Do all that work again for the next query.</span></li>
-              </ol>
-              <p>The visual below makes the cost visible: one line is one distance calculation.</p>
-              <BruteForceVisual />
-              <div className="comparison-strip"><div><span>GOOD</span><strong>Always exact</strong><p>If the distance rule is correct, brute force cannot miss the nearest item.</p></div><div><span>THE DOWNSIDE</span><strong>Work grows with every item</strong><p>Double the collection and each query performs roughly twice as many distance calculations.</p></div></div>
-              <p className="chapter-takeaway"><b>HNSW stands for Hierarchical Navigable Small World.</b> It builds a layered graph to find likely nearest matches without checking every stored item. This is <b>approximate nearest-neighbor search</b>: it saves work, but it can miss a true nearest match.</p>
-            </div>
-          </section>
-
-          <section id="chapter-connect" className="guide-chapter">
-            <header className="chapter-heading"><span>02</span><div><p className="section-kicker">From vectors to a graph</p><h2>Connect similar vectors into neighborhoods.</h2><p>A node is one stored vector. An edge is a link between two nodes. Together, the nodes and links form the graph—the searchable index.</p></div></header>
-            <div className="lesson-block">
-              <h3>Nearby is useful; reachable is essential</h3>
-              <p>The <ParameterLink name="metric" label="distance metric"/> decides what “near” means. For each node, HNSW keeps a small set of useful neighbors. The <ParameterLink name="neighborRule" label="neighbor selection rule"/> can prefer links in different directions instead of choosing only a tight clump of the closest nodes.</p>
-              <p>In the visual below, notice the green bridge. It is not the shortest possible link, but it gives searches a route between neighborhoods.</p>
-              <ConnectionVisual />
-              <div className="example-card"><span>EXAMPLE</span><p>If every jazz song links only to almost-identical jazz songs, a search that starts there may never discover nearby brass music. One well-placed bridge keeps both groups reachable.</p></div>
-              <p className="chapter-takeaway"><b>The graph is approximate:</b> we keep enough routes to search well, not every possible connection.</p>
-            </div>
-          </section>
-
-          <section id="chapter-layers" className="guide-chapter">
-            <header className="chapter-heading"><span>03</span><div><p className="section-kicker">Why HNSW is hierarchical</p><h2>Layers turn a long walk into a few big jumps.</h2><p>A single graph still forces the search to cross many local links. HNSW stacks sparse copies above the full graph so it can move across the map quickly before examining local detail.</p></div></header>
-            <div className="lesson-block">
-              <dl className="term-grid compact-terms">
-                <div><dt>Layer 0 · L0</dt><dd>The full graph. Every stored vector lives here.</dd></div>
-                <div><dt>Upper layers · L1, L2…</dt><dd>Smaller maps containing a random subset of the same nodes.</dd></div>
-                <div><dt>Entry point</dt><dd>The saved node where every search begins, on the highest layer.</dd></div>
-                <div><dt><ParameterLink name="mL"/></dt><dd>Controls how often nodes are promoted to upper layers.</dd></div>
-              </dl>
-              <p className="stage-visual-intro">Follow the blue route in the visual: make long moves on L2, refine the region on L1, then finish among all vectors on L0.</p>
-              <LayersVisual />
-              <div className="comparison-strip"><div><span>UPPER LAYERS</span><strong>Highways</strong><p>Few nodes, long links, cheap navigation toward the right region.</p></div><div><span>LAYER 0</span><strong>Neighborhood streets</strong><p>Every node, detailed links, enough alternatives to choose the final matches.</p></div></div>
-              <p className="chapter-takeaway"><b>Nothing is duplicated semantically:</b> A on L2 and A on L0 are the same stored vector shown at two navigation levels.</p>
-            </div>
-          </section>
-
-          <section id="chapter-search" className="guide-chapter">
-            <span id="ef-search-explained" className="anchor-alias"/>
-            <header className="chapter-heading"><span>04</span><div><p className="section-kicker">Assume the graph already exists</p><h2>Search from coarse layers to fine ones.</h2><p>Upper layers greedily find a promising region. Layer 0 keeps several possible routes alive so one unlucky turn does not end the search.</p></div></header>
-            <div className="lesson-block">
-              <h3>First, watch one complete search</h3>
-              <p>Watch S discover two choices. Step through the small replay once using “best so far” and “to check”; the formal symbols and stopping rule come immediately afterward.</p>
-              <p>The graph, query, and <ParameterLink name="k"/> stay fixed. Only <ParameterLink name="efSearch"/> changes, so you can see why one extra candidate slot matters.</p>
-              <div id="four-dot-search"><EfSearchVisual /></div>
-              {onStartFirstSearch && <aside className="try-panel"><div><span>TRY THE SAME SEARCH</span><h3>Try the four-dot example in Playground</h3><p>Start paused with one candidate slot, then rerun the same target with two. Predict which answer changes and how much extra work it needs.</p></div><button className="button primary desktop-lesson-action" onClick={onStartFirstSearch}>Open guided search →</button><a className="button primary mobile-lesson-action" href="#four-dot-search">Replay inline →</a></aside>}
-
-              <h3 className="lesson-subheading">Search notation and rules</h3>
-              <dl className="term-grid search-terms">
-                <div><dt><code>W</code> · best so far</dt><dd>The closest candidates discovered so far. A node stays in W even after its links are explored.</dd></div>
-                <div><dt><code>C</code> · to check</dt><dd>A waiting list of candidates whose links may still reveal something better. Check the nearest one next.</dd></div>
-                <div><dt><ParameterLink name="efSearch"/></dt><dd>How many best-so-far slots W gets on L0. More room keeps more possible routes open; it does not set the result count.</dd></div>
-                <div><dt><ParameterLink name="k"/></dt><dd>How many final matches to return from W. This visualizer gives W whichever is larger: <ParameterLink name="efSearch"/> or <ParameterLink name="k"/>.</dd></div>
-                <div><dt>Candidate</dt><dd>A discovered node being considered for admission to both W and C.</dd></div>
-                <div><dt>Expand</dt><dd>Remove the nearest node from C and inspect its links. Expansion does not remove it from W.</dd></div>
-              </dl>
-              <p className="term-memory"><b>Remember:</b> W remembers possible answers. C remembers where to look next. <ParameterLink name="efSearch"/> controls W’s candidate capacity.</p>
-
-              <h3 className="lesson-subheading">Step 1: navigate the upper layers</h3>
-              <ol className="explanation-steps">
-                <li><b>Enter high.</b><span>Start at the entry point on the top layer.</span></li>
-                <li><b>Move closer.</b><span>Follow a connected neighbor only when it is closer to q.</span></li>
-                <li><b>Stop locally.</b><span>When no link improves the position, keep the best node found.</span></li>
-                <li><b>Descend.</b><span>Use that node as the starting point on the next layer.</span></li>
-              </ol>
-              <SearchVisual />
-
-              <div id="w-per-layer" className="term-pair"><div><code>Upper layers · W has 1 slot</code><p>Navigation is greedy and cheap. Only the best node found is passed down.</p></div><div><b>Layer 0 · W uses the larger of <ParameterLink name="efSearch"/> and <ParameterLink name="k"/></b><p>The full graph keeps alternate routes long enough to find the final matches.</p></div></div>
-
-              <h3 className="lesson-subheading">Step 2: search wider on layer 0</h3>
-              <div id="c-admission-rule" className="example-card queue-admission">
-                <span>C ADMISSION + STOPPING RULE</span>
-                <h4>When do we add a node to C, and when do we stop?</h4>
-                <ul>
-                  <li><b>Start:</b> put the entry point in both C and W.</li>
-                  <li><b>Discover a neighbor:</b> add it to both C and W when W has an empty slot, or when the neighbor is closer to q than W’s farthest node. Otherwise, add it to neither list.</li>
-                  <li><b>Expand or stop:</b> inspect C’s nearest node next. If C is empty, or its nearest node is farther from q than W’s farthest node, end this layer. Otherwise, remove that nearest node from C and inspect its neighbors; it can remain in W.</li>
-                  <li><b>Finish:</b> after an upper layer ends, take W’s best node down to the next layer. After L0 ends, return the closest <ParameterLink name="k"/> nodes from W.</li>
-                </ul>
-              </div>
-              <p>This stopping rule saves work but can miss an unseen shortcut. <b>Recall</b> measures the share of true nearest matches found. Raising <ParameterLink name="efSearch"/> often improves recall by doing more distance checks, but it cannot repair a badly connected graph.</p>
-              <KnowledgeCheck question="Does efSearch change how many results are returned?" choices={['Yes', 'No—that is k']} correct={1} explanation="efSearch changes how broadly layer 0 is explored. k sets the result count."/>
-              <a className="algorithm-reference-link" href="#algorithm-knn-search" data-learn-reference onClick={followLearnReference}>Read the search pseudocode →</a>
-            </div>
-          </section>
-
-          <section id="chapter-insert" className="guide-chapter">
-            <span id="lesson-4" className="anchor-alias"/>
-            <header className="chapter-heading"><span>05</span><div><p className="section-kicker">Changing the graph</p><h2>An insert searches first, then makes links.</h2><p>The new vector temporarily acts like a query. It uses the existing index to find good neighbors, connects on every layer where it lives, and may become the new entry point.</p></div></header>
-            <div className="lesson-block">
-              <h3>Parameters used by insertion</h3>
-              <dl className="term-grid search-terms">
-                <div><dt><ParameterLink name="mL"/></dt><dd>Controls the random height assigned to the new node. The data itself does not choose the layer.</dd></div>
-                <div><dt><ParameterLink name="efConstruction"/></dt><dd>The size of the candidate pool kept while searching for possible links. More candidates cost more build time.</dd></div>
-                <div><dt><ParameterLink name="M"/></dt><dd>The target number of links the new node chooses on each layer.</dd></div>
-                <div><dt><ParameterLink name="neighborRule" label="neighbor selection rule"/></dt><dd>Chooses either the nearest candidates or a more diverse set of directions.</dd></div>
-                <div><dt><ParameterLink name="Mmax"/></dt><dd>The hard edge limit for an existing node above L0.</dd></div>
-                <div><dt><ParameterLink name="Mmax0"/></dt><dd>The hard edge limit for an existing node on the larger bottom layer.</dd></div>
-              </dl>
-              <p className="advanced-switch-note">Two advanced switches refine neighbor selection: <ParameterLink name="extendCandidates" label="extend candidates"/> widens the pool, while <ParameterLink name="keepPrunedConnections" label="keep pruned connections"/> uses close rejects to fill unused link slots.</p>
-              <ol className="explanation-steps">
-                <li><b>Choose a height.</b><span>A repeatable random draw decides the highest layer for the new node.</span></li>
-                <li><b>Navigate.</b><span>From the current entry point, greedily descend to the first layer where the new node exists.</span></li>
-                <li><b>Find candidates.</b><span>Search each remaining layer with the insertion candidate pool.</span></li>
-                <li><b>Connect and trim.</b><span>Choose useful links in both directions, then enforce each node’s edge cap.</span></li>
-              </ol>
-              <p className="stage-visual-intro">The three panels below show those stages from left to right.</p>
-              <BuildVisual />
-              <div className="example-card"><span>SMALL EXAMPLE</span><h4>Why not always choose the two closest links?</h4><p>Place new node N at 0 on a number line. P is at 2, R at 3, and L at −4. With <ParameterLink name="M"/> = 2, choose N–P first. R is close, but P already reaches that direction. N–L can be more useful because it opens the other direction. The heuristic trades one very close link for a more navigable graph.</p><NeighborChoiceVisual /></div>
-              <p className="chapter-takeaway"><b>Insertion changes future searches:</b> <ParameterLink name="efConstruction"/> and <ParameterLink name="M"/> cost build time or memory now to create better routes later.</p>
-              <a className="algorithm-reference-link" href="#algorithm-insert" data-learn-reference onClick={followLearnReference}>Read the insertion pseudocode →</a>
-            </div>
-          </section>
-
-          <section id="chapter-delete" className="guide-chapter">
-            <header className="chapter-heading"><span>06</span><div><p className="section-kicker">Removing a vector</p><h2>Delete cheaply, or remove and repair.</h2><p>The original HNSW paper does not define deletion. This visualizer demonstrates a reversible tombstone and a physical removal with best-effort link repair; production libraries expose different capabilities and semantics.</p></div></header>
-            <div className="lesson-block">
-              <div className="term-pair"><div id="soft-delete"><code>Soft delete · tombstone</code><p>Mark the node unavailable for results but keep it and every edge for routing. Fast and reversible; memory is reclaimed later by rebuilding or compacting.</p></div><div id="hard-delete"><code>Hard delete · remove + repair</code><p>Remove the node and all of its edges, then offer its former neighbors to one another as replacement links. Reclaims memory but can weaken the graph.</p></div></div>
-              <p className="delete-visual-intro">Compare the same starting graph on both sides. The crossed-out node on the left still carries routes. The dashed space on the right marks the removed node; only selected repair links reconnect its former neighbors.</p>
-              <DeleteVisual />
-              <h3 className="lesson-subheading">What each mode does</h3>
-              <ol className="explanation-steps">
-                <li><b>Soft: mark.</b><span>Set the tombstone flag; do not touch edges.</span></li>
-                <li><b>Soft: filter.</b><span>Search may travel through the node, but it cannot return it as an answer.</span></li>
-                <li><b>Hard: unlink and repair.</b><span>On each layer, remove the node and reselect links among affected neighbors.</span></li>
-                <li><b>Hard: replace entry.</b><span>If it was the entry point, choose the highest surviving node as the new start.</span></li>
-              </ol>
-              <div className="example-card"><span>PARAMETERS USED</span><p>Delete mode is the only choice specific to deletion. Soft delete has no tuning knobs. Hard repair reuses the <ParameterLink name="neighborRule" label="neighbor selection rule"/> and the <ParameterLink name="Mmax"/> / <ParameterLink name="Mmax0"/> edge caps. Repeated hard repairs are approximate, so periodic rebuilds may still be needed.</p></div>
-              <p className="chapter-takeaway"><b>In this visualizer:</b> soft delete preserves the graph and is reversible; hard delete reclaims the node immediately but its best-effort repair may reduce recall. Check your chosen library’s deletion documentation before applying this model elsewhere.</p>
-              <a className="algorithm-reference-link" href="#algorithm-delete" data-learn-reference onClick={followLearnReference}>Read the delete and repair pseudocode →</a>
-            </div>
-          </section>
-
-          <section id="chapter-update" className="guide-chapter">
-            <header className="chapter-heading"><span>07</span><div><p className="section-kicker">Moving an existing vector</p><h2>An update must repair the node’s neighborhood.</h2><p>Changing a vector moves it in the similarity space. Its old links may no longer make sense, so the index must reconnect it near its new position.</p></div></header>
-            <div className="lesson-block">
-              <div className="term-pair"><div id="update-reinsert"><code>Reinsert · broader search</code><p>Remove the node and its old links, then insert the new vector through a graph search. This usually considers a wider neighborhood and redraws the node’s random highest layer, but it does not guarantee exact nearest neighbors.</p></div><div id="update-in-place"><code>In place · local repair</code><p>Overwrite the vector, keep its current level, and choose replacement links only from its old two-hop neighborhood. This avoids a full graph search but can miss useful routes after a large move.</p></div></div>
-              <p className="stage-visual-intro">Both modes keep the same node identity and label. The difference is how widely they look for replacement neighbors.</p>
-              <UpdateVisual />
-              <h3 className="lesson-subheading">What happens when you move a dot</h3>
-              <ol className="explanation-steps">
-                <li><b>Choose the node.</b><span>Select the stored vector whose values need to change.</span></li>
-                <li><b>Set the new vector.</b><span>Drag the dot or enter new coordinates. Its new position changes which vectors are similar.</span></li>
-                <li><b>Repair its links.</b><span>Reinsert searches the graph broadly. In place searches only around the node’s old neighbors.</span></li>
-                <li><b>Review the replay.</b><span>Step through the trace to see removed links, candidate neighbors, and the new connections.</span></li>
-              </ol>
-              <div className="example-card"><span>COMPARE THE DEMO STRATEGIES</span><h4>Match the repair scope to the size of the change.</h4><p>For a small move, the local pool may still contain useful neighbors and can avoid a broader search. After a large move, that old pool is more likely to miss useful new routes, so the demo’s Reinsert strategy searches more broadly. Neither strategy guarantees exact nearest neighbors.</p></div>
-              <p className="chapter-takeaway"><b>What the picture shows:</b> one possible outcome of the same move. Search and graph quality depend on the current graph, parameters, and insertion history.</p>
-              <a className="algorithm-reference-link" href="#algorithm-update" data-learn-reference onClick={followLearnReference}>Read the update pseudocode →</a>
-            </div>
-          </section>
-
-          <section id="parameter-guide" className="guide-chapter control-chapter">
-            <header className="chapter-heading"><span>08</span><div><p className="section-kicker">One reference, linked everywhere</p><h2>Parameter reference.</h2><p>The chapters explain why a setting appears. This section is the single place for exact ranges, trade-offs, and whether a change rebuilds the graph.</p></div></header>
-            <div className="control-summary-grid"><div><span>QUERY TIME</span><b>k · efSearch</b><p>Change the next search without rebuilding.</p></div><div><span>BUILD TIME</span><b>M · efConstruction · mL · caps</b><p>Change the graph and trigger a rebuild.</p></div><div><span>DATA & SELECTION</span><b>Dataset · metric · neighbor rule</b><p>Change the example or what links mean.</p></div></div>
-            <div className="reference-library">{Object.values(CONTROL_GUIDES).map((guide) => <ControlCard key={guide.id} guide={guide}/>)}</div>
-            <p className="ef-source">Algorithm references: <a href="https://arxiv.org/abs/1603.09320">the original HNSW paper</a> and <a href="https://github.com/nmslib/hnswlib/blob/master/ALGO_PARAMS.md">hnswlib’s parameter guide</a>. Deletion is implementation-specific and is not defined by the paper.</p>
-          </section>
-
-          <section id="algorithm-steps" className="guide-chapter algorithm-chapter">
-            <header className="chapter-heading"><span>09</span><div><p className="section-kicker">The complete reference</p><h2>Read the algorithm one operation at a time.</h2><p>The earlier chapters explain the ideas with pictures. This final section collects the same operations as compact pseudocode, after the symbols and behavior are familiar.</p></div></header>
-            <div className="lesson-block">
-              <h3>How to read the listings</h3>
-              <dl className="term-grid compact-terms algorithm-terms">
-                <div><dt><code>q</code></dt><dd>The query vector, or the new vector during insertion.</dd></div>
-                <div><dt><code>ep</code></dt><dd>The entry point or starting node for this search.</dd></div>
-                <div><dt><code>lc</code></dt><dd>The current layer number.</dd></div>
-                <div><dt><code>ef</code></dt><dd>The number of best candidates kept while searching a layer.</dd></div>
-              </dl>
-              <p>Read from top to bottom. Algorithms 1–5 appear in order: insertion, one-layer search, neighbor selection, then the complete nearest-neighbor search. Delete and Update follow as implementation-specific operations.</p>
-              <div className="reference-library algorithm-library">{LEARN_LISTINGS.map(listing => <AlgorithmListing key={listing.id} listing={listing}/>)}</div>
-              <p className="algorithm-caveat"><b>Paper boundary:</b> INSERT, SEARCH-LAYER, SELECT-NEIGHBORS, and K-NN-SEARCH are the teaching version of Algorithms 1–5. DELETE and UPDATE show the implementation conventions used by this visualizer because the original paper does not define them.</p>
-            </div>
-          </section>
+function AlgorithmListing({ listing }: { listing: Listing }) {
+  return (
+    <details
+      id={`algorithm-${listing.id}`}
+      className="learn-disclosure algorithm-listing"
+    >
+      <summary>
+        <code>{listing.title}</code>
+        <span>{listing.subtitle}</span>
+      </summary>
+      <div className="algorithm-listing-content">
+        <div className="code">
+          {listing.lines.map((line) => (
+            <span
+              key={line.key}
+              className={`ln${line.indent === 0 ? " head" : ""}`}
+              title={line.note}
+            >
+              {"  ".repeat(line.indent)}
+              {line.text}
+            </span>
+          ))}
         </div>
       </div>
+    </details>
+  );
+}
 
-      <footer className="guide-footer"><span>You now have the whole path: exact scan → graph → layers → search → insert → delete → update → pseudocode.</span><button className="button secondary desktop-lesson-action" onClick={onOpenPlayground}>Open or resume Playground →</button><a className="button secondary mobile-lesson-action" href="#four-dot-search">Practice the inline search →</a></footer>
-    </div>
-  </main>
+export function ExplanationPage({
+  onOpenPlayground,
+  onStartFirstSearch,
+  initialSection,
+}: {
+  onOpenPlayground: () => void;
+  onStartFirstSearch?: () => void;
+  /** Only for tests/no-DOM rendering, where there is no `window.location` to read. */
+  initialSection?: SectionId;
+}) {
+  const page = useRef<HTMLElement>(null);
+  const [section, setSection] = useState<SectionId>(() => {
+    if (initialSection) return initialSection;
+    try {
+      const hash = decodeURIComponent(window.location.hash.slice(1));
+      const fromHash = hash ? sectionFor(hash) : null;
+      if (fromHash) return fromHash;
+      const saved = sessionStorage.getItem("hnsw-learn-section");
+      if (saved && SECTION_IDS.includes(saved)) return saved as SectionId;
+    } catch {
+      /* Storage/hash access is optional. */
+    }
+    return "chapter-problem";
+  });
+  const [returnPoint, setReturnPoint] = useState<LearnReturnPoint | null>(
+    readLearnReturnPoint,
+  );
+
+  useEffect(() => {
+    const element = page.current;
+    if (!element) return;
+    const reveal = () => {
+      let hash: string;
+      try {
+        hash = decodeURIComponent(window.location.hash.slice(1));
+      } catch {
+        return;
+      }
+      const target = hash ? sectionFor(hash) : null;
+      if (target) {
+        setSection(target);
+        try {
+          sessionStorage.setItem("hnsw-learn-section", target);
+        } catch {
+          /* Storage is optional. */
+        }
+      }
+      window.requestAnimationFrame(() =>
+        window.requestAnimationFrame(() => {
+          const targetEl = hash ? document.getElementById(hash) : null;
+          if (!targetEl) {
+            element.scrollTop = 0;
+            return;
+          }
+          let parent: HTMLElement | null = targetEl;
+          while (parent) {
+            if (parent instanceof HTMLDetailsElement) parent.open = true;
+            parent = parent.parentElement;
+          }
+          targetEl.scrollIntoView({ block: "start" });
+        }),
+      );
+    };
+    const revealReference = () => {
+      setReturnPoint(readLearnReturnPoint());
+      reveal();
+    };
+    const frame = window.requestAnimationFrame(revealReference);
+    window.addEventListener("hashchange", revealReference);
+    window.addEventListener("popstate", revealReference);
+    const showReturn = (event: Event) =>
+      setReturnPoint((event as CustomEvent<LearnReturnPoint>).detail);
+    window.addEventListener(LEARN_REFERENCE_EVENT, showReturn);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("hashchange", revealReference);
+      window.removeEventListener("popstate", revealReference);
+      window.removeEventListener(LEARN_REFERENCE_EVENT, showReturn);
+    };
+  }, []);
+
+  const continueReading = () => {
+    if (!returnPoint) return;
+    prepareLearnReturn(returnPoint);
+    setReturnPoint(null);
+    window.history.replaceState({}, "", returnPoint.href);
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  };
+
+  return (
+    <main
+      ref={page}
+      className="explanation-page beginner-guide simplified-learn"
+    >
+      {returnPoint && (
+        <button
+          type="button"
+          className="continue-reading"
+          onClick={continueReading}
+        >
+          <span aria-hidden="true">←</span> Continue where you left
+        </button>
+      )}
+      <div className="guide-wrap">
+        <header className="guide-hero">
+          <h1>Find similar things without checking everything.</h1>
+        </header>
+
+        <div className="guide-layout">
+          <nav className="guide-toc" aria-label="Learn HNSW contents">
+            {SECTION_NAV.map((item) => (
+              <a
+                key={item.id}
+                href={`#${item.id}`}
+                aria-current={section === item.id ? "page" : undefined}
+              >
+                <span>{item.number}</span>
+                {item.label}
+              </a>
+            ))}
+          </nav>
+
+          <div className="guide-content">
+            {section === "chapter-problem" && (
+              <section id="chapter-problem" className="guide-chapter">
+                <span id="chapter-connect" className="anchor-alias" />
+                <header className="chapter-heading">
+                  <span>01</span>
+                  <div>
+                    <p className="section-kicker">The need</p>
+                    <h2>Why do we need HNSW?</h2>
+                    <p>
+                      Imagine an online store with millions of products. If you
+                      search for a “comfortable running shoe,” comparing your
+                      search with every product would be slow. HNSW quickly
+                      moves through connected, similar products, skips unlikely
+                      matches, and focuses on the most promising ones.
+                    </p>
+                  </div>
+                </header>
+                <div className="lesson-block">
+                  <div
+                    className="simple-callout"
+                    style={{ borderLeft: "3px solid var(--red)" }}
+                  >
+                    <b>The slow, exact way</b>
+                    <p>
+                      Convert each product into an embedding vector. Compare the
+                      query vector with every product vector, calculate their
+                      similarity scores, sort the results, and return the top{" "}
+                      <b>k</b> most similar products.
+                    </p>
+                  </div>
+                  <div
+                    className="simple-callout"
+                    style={{ borderLeft: "3px solid var(--green)" }}
+                  >
+                    <b>The HNSW way</b>
+                    <p>
+                      It connects similar vectors with edges and builds a few
+                      smaller layers on top. These layers help the search
+                      quickly reach the right area. From there, it checks nearby
+                      vectors more closely and returns the top <b>k</b> closest
+                      matches.
+                    </p>
+                  </div>
+                  <div className="visual-pair">
+                    <LinearScanVisual />
+                    <GraphSearchVisual />
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {section === "chapter-search" && (
+              <section id="chapter-search" className="guide-chapter">
+                <span id="chapter-layers" className="anchor-alias" />
+                <span id="ef-search-explained" className="anchor-alias" />
+                <span id="w-per-layer" className="anchor-alias" />
+                <span id="c-admission-rule" className="anchor-alias" />
+                <header className="chapter-heading">
+                  <span>02</span>
+                  <div>
+                    <p className="section-kicker">Search</p>
+                    <h2>From layer to layer</h2>
+                    <p>
+                      As we saw earlier, HNSW starts at the top layer and moves
+                      down, getting closer to the query at each step. At the
+                      bottom layer, it explores the nearby nodes more carefully
+                      to find the closest matches. A few parameters control how
+                      thorough this search is. For now, assume the graph is
+                      already built—we’ll cover how HNSW builds it in the next
+                      section.
+                    </p>
+                  </div>
+                </header>
+                <div className="lesson-block">
+                  <LayersVisual />
+                  <ol className="explanation-steps">
+                    <li>
+                      <b>Start high.</b>
+                      <span>Begin on the smallest overview layer.</span>
+                    </li>
+                    <li>
+                      <b>Move closer.</b>
+                      <span>
+                        Follow a link when it brings the search nearer to the
+                        request.
+                      </span>
+                    </li>
+                    <li>
+                      <b>Move down.</b>
+                      <span>
+                        Use the best dot so far as the start for the next layer.
+                      </span>
+                    </li>
+                    <li>
+                      <b>Keep a few options.</b>
+                      <span>
+                        On the bottom layer, explore more than one promising
+                        route before returning results.
+                      </span>
+                    </li>
+                  </ol>
+                  <div id="keep-routes-exercise" className="route-explanation">
+                    <p className="section-kicker">Why keep a few options?</p>
+                    <h3>The first promising path can be a dead end.</h3>
+                    <p>
+                      Think of two possible routes to a new café — pick wrong,
+                      and a better street just around the corner might go
+                      unnoticed. HNSW remembers a few unexplored dots for
+                      exactly this reason. If one path stops improving, it tries
+                      another. Remembering more options can find a better match,
+                      at the cost of a little extra checking.
+                    </p>
+                  </div>
+                  <KeptRoutesVisual />
+                  {onStartFirstSearch && (
+                    <aside className="try-panel desktop-lesson-action">
+                      <div>
+                        <span>LEARN BY DOING</span>
+                        <h3>Watch one search in Playground</h3>
+                        <p>
+                          Follow the route one step at a time and see when the
+                          search keeps or skips a dot.
+                        </p>
+                      </div>
+                      <button
+                        className="button primary"
+                        onClick={onStartFirstSearch}
+                      >
+                        Start guided search →
+                      </button>
+                    </aside>
+                  )}
+                </div>
+              </section>
+            )}
+
+            {section === "chapter-insert" && (
+              <section id="chapter-insert" className="guide-chapter">
+                <span id="lesson-4" className="anchor-alias" />
+                <header className="chapter-heading">
+                  <span>03</span>
+                  <div>
+                    <p className="section-kicker">Insert</p>
+                    <h2>A new dot searches first, then connects.</h2>
+                    <p>
+                      Adding a new item is like moving into a neighborhood: you
+                      scope out who already lives nearby before deciding who to
+                      connect with. Insertion reuses the very search you just
+                      learned to find the new dot a good neighborhood.
+                    </p>
+                  </div>
+                </header>
+                <div className="lesson-block">
+                  <InsertVisual />
+                  <div className="simple-callout">
+                    <b>The useful connection</b>
+                    <p>
+                      Search asks, “Which stored dots are near this request?”
+                      Insert asks the same question for a new dot, then turns a
+                      few of those answers into links.
+                    </p>
+                  </div>
+                  <div className="simple-callout">
+                    <b>Which layers does it join?</b>
+                    <p>
+                      Before connecting, a new dot flips a coin to decide how
+                      high it climbs — heads, it keeps going; tails, it stops.
+                      Most dots land tails on the first flip and stay on the
+                      bottom layer; a rare few keep winning and become the
+                      shortcuts Search relies on. It’s pure chance, never a
+                      judgment about the dot.
+                    </p>
+                  </div>
+                  <LevelDrawVisual />
+                </div>
+              </section>
+            )}
+
+            {section === "chapter-delete" && (
+              <section id="chapter-delete" className="guide-chapter">
+                <span id="soft-delete" className="anchor-alias" />
+                <header className="chapter-heading">
+                  <span>04</span>
+                  <div>
+                    <p className="section-kicker">Delete</p>
+                    <h2>A deleted dot can still guide the search.</h2>
+                    <p>
+                      Think of a shop closed for renovation but still standing —
+                      you can walk past it to reach other stores, just not buy
+                      anything. A soft delete works the same way: the dot’s
+                      paths stay open for searches to pass through, but it won’t
+                      be returned as a result.
+                    </p>
+                  </div>
+                </header>
+                <div className="lesson-block">
+                  <DeleteVisual />
+                  <div id="hard-delete" className="simple-callout">
+                    <b>When should the dot disappear completely?</b>
+                    <p>
+                      A hard delete actually demolishes the shop and reroutes
+                      the street around the gap — it frees the space for good,
+                      with no undo. A soft-deleted dot, by contrast, can simply
+                      reopen.
+                    </p>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {section === "chapter-practice" && (
+              <section id="chapter-practice" className="guide-chapter">
+                <header className="chapter-heading">
+                  <span>05</span>
+                  <div>
+                    <p className="section-kicker">Try it</p>
+                    <h2>Change one thing at a time.</h2>
+                    <p>
+                      Reading only gets you so far — this is where it actually
+                      clicks. Tweak one control, then watch what happens.
+                    </p>
+                  </div>
+                </header>
+                <div className="lesson-block practice-grid">
+                  <div>
+                    <b>1 · Search</b>
+                    <p>
+                      Place a target and step forward. Watch the route move from
+                      an overview layer to the full graph.
+                    </p>
+                  </div>
+                  <div>
+                    <b>2 · Compare</b>
+                    <p>
+                      Keep the same target, open a few more search routes, and
+                      see whether the result improves.
+                    </p>
+                  </div>
+                  <div>
+                    <b>3 · Insert</b>
+                    <p>
+                      Add one dot. Notice that it searches for a neighborhood
+                      before creating links.
+                    </p>
+                  </div>
+                  <div>
+                    <b>4 · Delete</b>
+                    <p>
+                      Soft-delete a dot, then search again. The route may still
+                      pass through it, but it will not appear in the results.
+                    </p>
+                  </div>
+                  <button
+                    className="button primary learn-open-playground"
+                    onClick={onOpenPlayground}
+                  >
+                    Open Playground →
+                  </button>
+                </div>
+              </section>
+            )}
+
+            {section === "advanced-learning" && (
+              <section
+                id="advanced-learning"
+                className="guide-chapter advanced-learning"
+              >
+                <header className="chapter-heading">
+                  <span>+</span>
+                  <div>
+                    <p className="section-kicker">Advanced</p>
+                    <h2>Advanced reference</h2>
+                    <p>
+                      Updates, controls, and pseudocode — open a topic only when
+                      you want its exact detail.
+                    </p>
+                  </div>
+                </header>
+                <div className="advanced-learning-body">
+                  <section id="chapter-update" className="advanced-topic">
+                    <h2>Moving a dot</h2>
+                    <p id="update-reinsert">
+                      <b>Reinsert:</b> remove the old links, search broadly near
+                      the new position, and connect again.
+                    </p>
+                    <p id="update-in-place">
+                      <b>Local repair:</b> keep the dot’s layer and rebuild
+                      links from its old neighborhood. It does less work but may
+                      miss better routes after a large move.
+                    </p>
+                  </section>
+                  <section id="parameter-guide" className="advanced-topic">
+                    <h2>Control reference</h2>
+                    <p>
+                      Open a control only when you want its exact purpose and
+                      when it takes effect.
+                    </p>
+                    <div className="reference-library">
+                      {Object.values(CONTROL_GUIDES).map((guide) => (
+                        <ControlCard key={guide.id} guide={guide} />
+                      ))}
+                    </div>
+                  </section>
+                  <section id="algorithm-steps" className="advanced-topic">
+                    <h2>Pseudocode</h2>
+                    <p>
+                      The main guide uses everyday language. These listings keep
+                      the exact names used by the step-by-step code view.
+                    </p>
+                    <div className="reference-library algorithm-library">
+                      {LISTINGS.map((listing) => (
+                        <AlgorithmListing key={listing.id} listing={listing} />
+                      ))}
+                    </div>
+                  </section>
+                </div>
+              </section>
+            )}
+            <SectionPager current={section} />
+          </div>
+        </div>
+      </div>
+    </main>
+  );
 }

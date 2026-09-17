@@ -19,7 +19,7 @@ export type ViewMode = 'layer' | 'stack'
 export type Tool = 'search' | 'insert' | 'select'
 export type Granularity = 'coarse' | 'fine'
 export type GraphLabelScale = 1 | 1.25 | 1.5
-export type RightTab = 'build' | 'params' | 'code' | 'node' | 'metrics' | 'lab' | 'queues'
+export type RightTab = 'build' | 'params' | 'code' | 'node' | 'details' | 'queues'
 
 export const GRAPH_LABEL_SCALES: readonly GraphLabelScale[] = [1, 1.25, 1.5]
 

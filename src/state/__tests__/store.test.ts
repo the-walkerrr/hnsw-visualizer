@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { LESSONS } from '../../lessons/lessons'
 import { graphStats } from '../../hnsw/metrics'
 import { advance, initialState, reducer, type Action, type AppState, type ScriptOp } from '../store'
 
@@ -19,10 +18,10 @@ describe('initial state', () => {
 })
 
 describe('operations through the reducer', () => {
-  it('opens the fixed four-dot exercise without changing application defaults', () => {
+  it('opens the fixed guided exercise without changing application defaults', () => {
     const defaults = initialState()
     const guided = reducer(defaults, { type: 'startGuided' })
-    expect(guided.graph.nodes.size).toBe(4)
+    expect(guided.graph.nodes.size).toBe(8)
     expect(guided.params.efSearch).toBe(1)
     expect(guided.k).toBe(1)
     expect(guided.tool).toBe('search')
@@ -91,7 +90,7 @@ describe('operations through the reducer', () => {
     const seeded = seededState()
     const id = [...seeded.graph.nodes.keys()][10]
     for (const mode of ['reinsert', 'in-place'] as const) {
-      const state = { ...seeded, updateMode: mode, rightTab: 'metrics' as const }
+      const state = { ...seeded, updateMode: mode, rightTab: 'details' as const }
       const after = reducer(state, { type: 'moveNode', id, to: [640, 500] })
       expect(after.trace?.op).toBe(`update-${mode}`)
       expect(after.rightTab).toBe('queues')
@@ -162,102 +161,6 @@ describe('playback', () => {
     const s = script(seededState(), [{ t: 'insert', at: [500, 320] }])
     expect(advance(s, 0, -5)).toBe(0)
     expect(advance(s, s.trace!.steps.length - 1, 5)).toBe(s.trace!.steps.length - 1)
-  })
-})
-
-describe('lesson scripts', () => {
-  it('describes heuristic pruning without inventing a guaranteed graph route', () => {
-    const prose = LESSONS.flatMap((lesson) => lesson.steps).flatMap((step) => step.blocks)
-      .flatMap((block) => block.t === 'p' || block.t === 'note' || block.t === 'try' ? [block.text] : block.t === 'ul' ? block.items : [])
-      .join('\n')
-    expect(prose).toContain('does not prove that an edge or route already exists')
-    expect(prose).not.toContain('can reach `e` through `r` in one extra hop')
-  })
-
-  it('keeps deletion and update lesson claims scoped to the demo', () => {
-    const prose = LESSONS.flatMap((lesson) => lesson.steps).flatMap((step) => step.blocks)
-      .flatMap((block) => block.t === 'p' || block.t === 'note' || block.t === 'try' ? [block.text] : block.t === 'ul' ? block.items : [])
-      .join('\n')
-    expect(prose).toContain('In this visualizer, soft delete')
-    expect(prose).toContain('Deletion support and candidate handling differ')
-    expect(prose).toContain('Neither update strategy guarantees exact nearest neighbors')
-    expect(prose).not.toMatch(/default in every production|It is correct and it is expensive|Small nudges are safe/)
-  })
-
-  it('every step of every lesson applies cleanly and leaves a usable state', () => {
-    for (const [li, lesson] of LESSONS.entries()) {
-      let s = initialState()
-      for (const [si, step] of lesson.steps.entries()) {
-        const where = `lesson ${li + 1} "${lesson.title}" step ${si + 1}`
-        expect(() => {
-          s = script(s, step.ops ?? [])
-        }, where).not.toThrow()
-        if (s.graph.nodes.size > 0) {
-          expect(s.graph.entry, where).not.toBeNull()
-          expect(s.graph.nodes.has(s.graph.entry!), where).toBe(true)
-        }
-        if (s.trace) {
-          expect(s.step, where).toBeLessThan(s.trace.steps.length)
-          expect(s.step, where).toBeGreaterThanOrEqual(0)
-        }
-      }
-    }
-  })
-
-  it('every "try this" button in every lesson applies cleanly', () => {
-    for (const [li, lesson] of LESSONS.entries()) {
-      for (const [si, step] of lesson.steps.entries()) {
-        let s = script(initialState(), step.ops ?? [])
-        for (const block of step.blocks) {
-          if (block.t !== 'try') continue
-          const where = `lesson ${li + 1} step ${si + 1}: "${block.text.slice(0, 40)}…"`
-          expect(() => {
-            s = script(s, block.ops)
-          }, where).not.toThrow()
-          expect(s.graph.nodes.size, where).toBeGreaterThanOrEqual(0)
-        }
-      }
-    }
-  })
-
-  it('lesson tab and view ops reference real panels', () => {
-    const tabs = new Set(['build', 'params', 'code', 'node', 'metrics', 'lab', 'queues'])
-    for (const lesson of LESSONS) {
-      for (const step of lesson.steps) {
-        const ops = [
-          ...(step.ops ?? []),
-          ...step.blocks.flatMap((b) => (b.t === 'try' ? b.ops : [])),
-        ]
-        for (const op of ops) {
-          if (op.t === 'tab') expect(tabs.has(op.tab)).toBe(true)
-          if (op.t === 'view' && op.layer !== undefined) expect(op.layer).toBeGreaterThanOrEqual(0)
-        }
-      }
-    }
-  })
-})
-
-describe('lesson isolation', () => {
-  it('a lesson that pins parameters is unaffected by earlier fiddling', () => {
-    // Arrive at the hierarchy lesson after cranking M up in the Insert tab.
-    let s = reducer(seededState(), { type: 'setParams', patch: { M: 24, Mmax: 24, Mmax0: 48, mL: 0.3 } })
-    const layersBefore = s.graph.topLayer
-    const hierarchyLesson = LESSONS[2].steps[0]
-    s = script(s, hierarchyLesson.ops ?? [])
-    expect(s.params.M).toBe(5)
-    expect(s.params.mL).toBeCloseTo(1 / Math.log(5), 6)
-    // A squashed hierarchy would contradict the lesson's own text.
-    expect(s.graph.topLayer).toBeGreaterThanOrEqual(layersBefore)
-  })
-
-  it('lessons that describe a specific picture all pin their parameters', () => {
-    for (const i of [0, 2, 6, 7]) {
-      const ops = LESSONS[i].steps[0].ops ?? []
-      expect(
-        ops.some((o) => o.t === 'params' && o.patch.M !== undefined),
-        `lesson ${i + 1} must pin M`,
-      ).toBe(true)
-    }
   })
 })
 
@@ -342,7 +245,7 @@ describe('operation isolation', () => {
   })
 
   it('opens the panel that matches the selected canvas tool', () => {
-    const state = { ...seededState(), rightTab: 'metrics' as const }
+    const state = { ...seededState(), rightTab: 'details' as const }
     expect(reducer(state, { type: 'setTool', tool: 'select' }).rightTab).toBe('node')
     expect(reducer(state, { type: 'setTool', tool: 'search' }).rightTab).toBe('build')
     expect(reducer(state, { type: 'setTool', tool: 'insert' }).rightTab).toBe('params')

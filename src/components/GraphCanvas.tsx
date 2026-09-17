@@ -375,7 +375,7 @@ export function GraphCanvas({
                   fill={active ? 'var(--text-2)' : 'var(--text-3)'}
                   fontWeight={600}
                 >
-                  L{layer}
+                  Layer {layer}
                 </text>
               )}
               {proj.stacked && layer > 0 && <Verticals graph={graph} layer={layer} proj={proj} />}
@@ -828,7 +828,7 @@ function QueryMark({ at, layer, proj, zoom, labelScale }: { at: Vec; layer: numb
           stroke="none"
           fontWeight={600}
         >
-          q
+          target
         </text>
       </g>
     </g>
@@ -909,7 +909,7 @@ function NodeTip({
         <dd>{deg.join(' · ')}</dd>
         {q && (
           <>
-            <dt>distance to q</dt>
+            <dt>distance to query</dt>
             <dd>{f1(distance(q, node.vec, metric))}</dd>
           </>
         )}

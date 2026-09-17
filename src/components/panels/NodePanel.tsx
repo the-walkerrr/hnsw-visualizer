@@ -11,31 +11,8 @@ export function NodePanel() {
   const dispatch = useDispatch()
   const committedNode = state.selected !== null ? state.graph.nodes.get(state.selected) : undefined
   const node = state.selected !== null ? graph.nodes.get(state.selected) ?? committedNode : undefined
-  const nodes = [...state.graph.nodes.values()].sort((a, b) => a.seq - b.seq)
   const [pendingMove, setPendingMove] = useState<[number, number] | null>(null)
   const updateLocked = editsLocked(state)
-
-  const picker = (
-    <div className="field node-picker">
-      <label htmlFor="node-picker">Node</label>
-      <select
-        id="node-picker"
-        value={state.selected ?? ''}
-        disabled={nodes.length === 0}
-        onChange={(event) =>
-          dispatch({ type: 'select', id: event.target.value ? Number(event.target.value) : null })
-        }
-      >
-        <option value="">Select a node…</option>
-        {nodes.map((candidate) => (
-          <option key={candidate.id} value={candidate.id}>
-            {candidate.label} · id {candidate.id}{candidate.deleted ? ' · tombstoned' : ''}
-          </option>
-        ))}
-      </select>
-      <p className="hint">Keyboard alternative to selecting a node on the graph.</p>
-    </div>
-  )
 
   const updateStrategy = (
     <div className="field update-strategy">
@@ -54,7 +31,6 @@ export function NodePanel() {
       <div className="pane-scroll">
         <div className="panel-intro"><p className="section-kicker">Update</p><h2>Change a dot.</h2><p>Select a dot to inspect it. You can then move it, restore it if deleted, or delete it. The strategy below controls how a move repairs its links.</p></div>
         {updateStrategy}
-        {picker}
         <div className="empty"><span className="empty-glyph">◎</span><b>No node selected</b><span>Node level, neighbors, distance, and update actions will appear here.</span></div>
       </div>
     )
@@ -65,7 +41,6 @@ export function NodePanel() {
     <div className="pane-scroll">
       <div className="panel-intro"><p className="section-kicker">Update</p><h2>Change a dot.</h2><p>Inspect this dot, then move, restore, or delete it. The strategy below applies only when you move it.</p></div>
       {updateStrategy}
-      {picker}
       <div className="section-title">Node {node.label}</div>
       <dl className="kv">
         <dt>id</dt>
@@ -84,7 +59,7 @@ export function NodePanel() {
         <dd>{graph.entry === node.id ? 'yes' : 'no'}</dd>
         {q && (
           <>
-            <dt>distance to q</dt>
+            <dt>distance to query</dt>
             <dd>{distance(q, node.vec, state.params.metric).toFixed(1)}</dd>
           </>
         )}

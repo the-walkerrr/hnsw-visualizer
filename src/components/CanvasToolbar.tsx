@@ -3,8 +3,8 @@ import { editsLocked, useApp, useDispatch, useShownLayer, useViewGraph, type Too
 
 const LEGEND: Array<[string, string, string]> = [
   ['--c-query', 'target', 'Your search point'], ['--c-entry', 'start', 'Search starting point'],
-  ['--c-current', 'checking', 'Dot being checked'], ['--c-cand', 'to check', 'Dots waiting to be checked'],
-  ['--c-w', 'best so far', 'Closest dots found so far'], ['--c-result', 'matches', 'Returned matches'],
+  ['--c-current', 'checking now', 'Dot being checked'], ['--c-cand', 'still to check', 'Dots waiting to be checked'],
+  ['--c-w', 'best found', 'Closest dots found so far'], ['--c-result', 'matches', 'Returned matches'],
 ]
 
 export function TraceLegend() {
@@ -40,7 +40,7 @@ export function CanvasToolbar() {
         <button aria-pressed={viewMode === 'layer'} onClick={() => dispatch({ type: 'setViewMode', mode: 'layer' })}>One layer</button>
       </div>
       {viewMode === 'layer' && <div className="segmented layer-picker" role="group" aria-label="Visible layer">
-        {Array.from({ length: top + 1 }, (_, i) => top - i).map((l) => <button key={l} aria-pressed={layer === l} onClick={() => dispatch({ type: 'setLayer', layer: l })}>L{l}</button>)}
+        {Array.from({ length: top + 1 }, (_, i) => top - i).map((l) => <button key={l} aria-pressed={layer === l} onClick={() => dispatch({ type: 'setLayer', layer: l })}>Layer {l}</button>)}
       </div>}
       {viewMode === 'layer' && trace && <span className="trace-lock">Trace controls layer</span>}
     </div>

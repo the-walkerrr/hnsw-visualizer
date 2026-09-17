@@ -10,7 +10,7 @@ function isParameter(value: string): value is ControlGuideKey {
  *  lesson copy without pulling in a markdown dependency. */
 export function RichText({ text }: { text: string }) {
   const out: ReactNode[] = []
-  const re = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|_[^_]+_)/g
+  const re = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g
   let last = 0
   let m: RegExpExecArray | null
   let i = 0

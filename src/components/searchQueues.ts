@@ -63,7 +63,7 @@ export function searchQueues(trace: Trace | null, index: number) {
   const snapshot = trace.steps[snapshotIndex]
   // Old saved traces predate the numeric metadata, but their generated s2
   // titles recorded the same capacity. Never infer it from today's settings.
-  const capacity = snapshot.vis.searchEf ?? Number(trace.steps[start].title.match(/ef = (\d+)/)?.[1])
+  const capacity = snapshot.vis.searchEf ?? Number(trace.steps[start].title.match(/(?:SEARCH_WIDTH|ef) = (\d+)/)?.[1])
   const events = trace.steps.slice(start, snapshotIndex + 1).flatMap((step, offset) => {
     if (step.line !== 's13' && step.line !== 's12') return []
     const prior = trace.steps[start + offset - 1]

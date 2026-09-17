@@ -1,7 +1,7 @@
 import { useApp, useDispatch } from '../state/store'
 
 export function Transport() {
-  const { trace, step, playing, granularity, speed, movingNode, tool } = useApp()
+  const { trace, step, playing, granularity, speed, movingNode, tool, k } = useApp()
   const dispatch = useDispatch()
   const total = trace?.steps.length ?? 0
   const atEnd = total === 0 || step >= total - 1
@@ -10,7 +10,7 @@ export function Transport() {
     : tool === 'select'
       ? 'Update a dot to begin'
       : 'Run a search to begin'
-  const label = trace?.title ?? idleLabel
+  const label = trace?.op === 'search' ? `Search for ${k} ${k === 1 ? 'result' : 'results'}` : trace?.title ?? idleLabel
 
   return <div className="transport" aria-label="Trace playback">
     <fieldset className="transport-controls panel-fields" disabled={movingNode !== null}>

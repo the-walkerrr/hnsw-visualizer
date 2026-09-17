@@ -65,19 +65,36 @@ export function Explainer({ onOpenExplanation, collapsed: controlledCollapsed, o
   const query = current.vis.query
   const metric = current.vis.searchMetric ?? params.metric
   const rejectionComparison = considered && farthest && query
-    ? `This dot is ${distance(considered.vec, query, metric).toFixed(2)} from the target—not closer than W’s farthest dot (${distance(farthest.vec, query, metric).toFixed(2)}).`
-    : 'This dot is not closer to the target than W’s farthest dot.'
+    ? `This dot is ${distance(considered.vec, query, metric).toFixed(2)} from the target—not closer than the farthest best candidate (${distance(farthest.vec, query, metric).toFixed(2)}).`
+    : 'This dot is not closer to the target than the farthest best candidate.'
   const searchCopy: Record<string, { title: string; detail: string }> = {
     k2: { title: current.graph.entry === null ? 'No dots to search yet.' : 'Start at the top of the map.', detail: current.graph.entry === null ? 'Add some dots in Insert first.' : 'Every search starts at the same dot on the highest layer. From here, it looks for routes toward your target.' },
     s2: { title: `Search layer ${current.vis.layer}.`, detail: current.vis.layer === 0 ? `This layer holds every dot. Keep up to ${current.vis.searchEf ?? 1} possible matches in the shortlist while exploring their links.` : 'Use the shortcuts on this layer to get closer to your target.' },
     s9: { title: `Follow the connections from ${dot(current.vis.current)}.`, detail: 'This is the closest dot still waiting to be checked. Look at its neighbors for a better match.' },
     s10: { title: `Skip ${dot(current.vis.considering)}.`, detail: 'It was already checked on this layer. Skipping it avoids going around in circles.' },
-    s13: { title: `Keep ${dot(current.vis.considering)} as a possible match.`, detail: current.detail },
-    s12: { title: `Skip ${dot(current.vis.considering)}.`, detail: `W (best so far) is full (${current.vis.dynamic.length}/${current.vis.searchEf ?? current.vis.dynamic.length}). ${rejectionComparison} W stays unchanged, and this dot is not added to C (to check). The search continues with other neighbors and queued dots.` },
+    s13: { title: `Keep ${dot(current.vis.considering)} as a possible match.`, detail: 'There is room for this route, or it improves on the farthest dot currently kept. The search may check its connections next.' },
+    s12: { title: `Skip ${dot(current.vis.considering)}.`, detail: `The best-found list is full. ${rejectionComparison} The search continues with its other open routes.` },
     s8: { title: 'Stop exploring this layer.', detail: 'The next dot waiting to be checked is farther away than the matches already kept. The search stops here to save work.' },
     s15: { title: `Finished checking layer ${current.vis.layer}.`, detail: current.vis.layer === 0 ? 'The search has a shortlist. Next, return the closest matches from it.' : 'Keep the closest dot found here as the starting point for the next layer.' },
     k4: { title: 'Move down one layer.', detail: 'Use the best position found so far. The next layer has more dots for a closer look.' },
-    k6: { title: `Found ${current.vis.results.length} ${current.vis.results.length === 1 ? 'match' : 'matches'}.`, detail: 'Green rings mark the returned dots. Open Results to compare them with the true closest matches.' },
+    k6: { title: `Found ${current.vis.results.length} ${current.vis.results.length === 1 ? 'match' : 'matches'}.`, detail: 'Green rings mark the returned dots. Open Details to inspect the graph structure that supported this search.' },
+  }
+  const insertCopy: Record<string, { title: string; detail: string }> = {
+    i2: { title: 'Begin at the top of the existing graph.', detail: 'The new dot will follow the same path as a normal search until it reaches a useful neighborhood.' },
+    i3: { title: 'Choose which layers will contain the new dot.', detail: 'Most dots stay near the bottom. A random few also appear above it and become useful shortcuts.' },
+    i6: { title: 'Move toward the new dot’s neighborhood.', detail: 'Follow the upper-layer shortcuts before making any new connections.' },
+    i10: { title: 'Connect the new dot to useful nearby dots.', detail: 'The search found possible neighbors. Keep a small set of links that make the graph easy to navigate.' },
+    i12: { title: 'Keep the connections within their limit.', detail: 'If an existing dot becomes crowded, remove a less useful link.' },
+    i13: { title: 'Keep the connections within their limit.', detail: 'If an existing dot becomes crowded, remove a less useful link.' },
+    i14: { title: 'Continue on the next layer.', detail: 'Use the neighborhood just found as the starting area below.' },
+    i15: { title: 'The new dot is ready.', detail: 'It now belongs to the graph and can help later searches find their way.' },
+    n2: { title: 'Choose the new dot’s links.', detail: 'Consider nearby dots first, while avoiding a group of links that all lead in the same direction.' },
+    h2: { title: 'Compare the possible links.', detail: 'A useful connection should be close and should open a route that is not already covered.' },
+    h3: { title: 'Look one step farther.', detail: 'Nearby connections can reveal another useful direction.' },
+    h8: { title: `Keep ${dot(current.vis.considering)} as a neighbor.`, detail: 'This link adds a useful route to the graph.' },
+    h9: { title: `Skip ${dot(current.vis.considering)} as a neighbor.`, detail: 'Another chosen link already covers this direction.' },
+    h11: { title: 'Use an open connection slot.', detail: 'A previously skipped nearby dot can fill space that would otherwise remain empty.' },
+    h12: { title: 'The new links are ready.', detail: 'The graph now has a small set of useful routes around this dot.' },
   }
   const insertionLevel = current.line === 'i3' && rightTab !== 'code'
   const inserted = current.graph.nodes.get(current.vis.focus!)
@@ -85,7 +102,7 @@ export function Explainer({ onOpenExplanation, collapsed: controlledCollapsed, o
   const movedId = selected ?? trace.steps[0]?.vis.focus
   const before = trace.steps[0]?.graph.nodes.get(movedId!)
   const after = current.graph.nodes.get(movedId!)
-  const copy = trace.op === 'search' && rightTab !== 'code' ? searchCopy[current.line] : undefined
+  const copy = rightTab !== 'code' ? searchCopy[current.line] ?? (trace.op === 'insert' ? insertCopy[current.line] : undefined) : undefined
   return (
     <div className={`explainer${collapsed ? ' collapsed' : ''}`}>
       <div className="head">
