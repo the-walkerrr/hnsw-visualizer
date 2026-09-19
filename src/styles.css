@@ -541,6 +541,11 @@ input:hover, select:hover { border-color: var(--text-3); }
 .route-panel p b { color: var(--text-1); }
 .route-result circle { fill: var(--green); stroke: var(--green); }
 .route-unseen circle { stroke-dasharray: 3 2; opacity: .5; }
+.route-truth circle { stroke: var(--orange); stroke-width: 2.4; stroke-dasharray: 3 2; }
+.width-slider-row { display: flex; align-items: center; gap: 10px; padding: 14px 15px; border-bottom: 1px solid var(--line); }
+.width-slider-row label { color: var(--text-2); font-size: 12px; white-space: nowrap; }
+.width-slider-row input[type='range'] { flex: 1; }
+.width-slider-value { min-width: 1.4em; text-align: center; color: var(--blue); font: 11px var(--mono); }
 .scan-header { display: flex; align-items: center; gap: 12px; padding: 8px 20px 0; }
 .scan-score-label { color: var(--text-3); font: 9px var(--mono); text-align: right; white-space: nowrap; }
 .scan-list { margin: 0; padding: 20px; display: flex; flex-direction: column; gap: 8px; list-style: none; }

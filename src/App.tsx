@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CanvasToolbar } from "./components/CanvasToolbar";
+import { CanvasToolbar } from "./components/canvas-toolbar/CanvasToolbar";
 import { Explainer } from "./components/Explainer";
 import { ExplanationPage } from "./components/ExplanationPage";
-import { GraphCanvas } from "./components/GraphCanvas";
+import { GraphCanvas } from "./components/graph-canvas/GraphCanvas";
 import { InsertReplayPrompt } from "./components/InsertReplayPrompt";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { Transport } from "./components/Transport";

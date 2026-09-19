@@ -13,13 +13,14 @@ import {
   type RightTab,
   type ScriptOp,
 } from '../../state/store'
-import { CanvasToolbar } from '../CanvasToolbar'
-import { BarChart, LineChart } from '../Charts'
+import { CanvasToolbar } from '../canvas-toolbar/CanvasToolbar'
+import { BarChart } from '../charts/BarChart'
+import { LineChart } from '../charts/LineChart'
 import { Explainer } from '../Explainer'
 import { slotLabel } from '../formatCount'
 import { OperationNotice } from '../OperationNotice'
 import { ExplanationPage } from '../ExplanationPage'
-import { GraphCanvas } from '../GraphCanvas'
+import { GraphCanvas } from '../graph-canvas/GraphCanvas'
 import { InsertReplayPrompt } from '../InsertReplayPrompt'
 import { Transport } from '../Transport'
 import { BuildPanel } from '../panels/BuildPanel'

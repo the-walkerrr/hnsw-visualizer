@@ -1,27 +1,6 @@
 import * as AlertDialog from '@radix-ui/react-alert-dialog'
-import { editsLocked, useApp, useDispatch, useShownLayer, useViewGraph, type Tool } from '../state/store'
-
-const LEGEND: Array<[string, string, string]> = [
-  ['--c-query', 'target', 'Your search point'], ['--c-entry', 'start', 'Search starting point'],
-  ['--c-current', 'checking now', 'Dot being checked'], ['--c-cand', 'still to check', 'Dots waiting to be checked'],
-  ['--c-w', 'best found', 'Closest dots found so far'], ['--c-result', 'matches', 'Returned matches'],
-]
-
-export function TraceLegend() {
-  const { trace } = useApp()
-  if (!trace) return <div className="legend" aria-label="Graph key"><span>Dot = item · line = link · label = item ID</span></div>
-  const items = trace.op === 'search' ? LEGEND : [
-    ['--c-query', 'new / moved dot', 'The vector being added or moved'],
-    ...LEGEND.slice(1, 5), ['--c-result', 'chosen links', 'Neighbors selected for a connection'], ['--c-reject', 'rejected', 'Candidate or link not kept'],
-  ]
-  return <div className="legend" aria-label="Trace legend">{items.map(([color, label, title]) => <span key={label} title={title}><i style={{ background: `var(${color})` }} />{label}</span>)}</div>
-}
-
-function ToolIcon({ tool }: { tool: Tool }) {
-  if (tool === 'search') return <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8" cy="8" r="4.5"/><path d="m11.5 11.5 4 4"/></svg>
-  if (tool === 'insert') return <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>
-  return <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 3 9 8-5 1-2 5Z"/></svg>
-}
+import { editsLocked, useApp, useDispatch, useShownLayer, useViewGraph, type Tool } from '../../state/store'
+import { ToolIcon } from './ToolIcon'
 
 export function CanvasToolbar() {
   const state = useApp()
