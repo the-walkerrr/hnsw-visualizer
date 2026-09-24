@@ -241,12 +241,16 @@ describe('render smoke', () => {
     expect(panel).toContain('Compare update strategies')
   })
 
-  it('explains alternate search routes without an overloaded interactive comparison', () => {
+  it('introduces the search problem before the layer and bucket walkthroughs', () => {
     const html = render(initialState(), <ExplanationPage onOpenPlayground={() => {}} initialSection="chapter-search" />)
     expect(html).toContain('id="keep-routes-exercise"')
-    expect(html).toContain('The first promising path can be a dead end')
-    expect(html).toContain('If one path stops improving, it tries another')
-    expect(html).toContain('Remembering more options can find a better match')
+    expect(html).toContain('20 products · one query')
+    expect(html).toContain('Which node should we start from?')
+    expect(html.indexOf('id="chapter-layers"')).toBeLessThan(html.indexOf('id="keep-routes-exercise"'))
+    expect(html.indexOf('id="keep-routes-exercise"')).toBeLessThan(html.indexOf('id="c-admission-rule"'))
+    expect(html).toContain('aria-label="Layer walkthrough"')
+    expect(html).toContain('aria-label="Bucket walkthrough"')
+    expect(html.toLowerCase()).not.toContain('mango')
     expect(html).not.toContain('class="ef-demo"')
     expect(html).not.toContain('BEST_CANDIDATES')
     expect(html).not.toContain('CANDIDATES_TO_CHECK')
@@ -271,11 +275,13 @@ describe('render smoke', () => {
     expect(html).not.toMatch(/(?:BEST|CANDIDATES)<em>/)
   })
 
-  it('explains the layer roles and keeps queue details optional', () => {
+  it('explains per-layer bucket capacities and retains playground queue guidance', () => {
     const learn = render(initialState(), <ExplanationPage onOpenPlayground={() => {}} initialSection="chapter-search" />)
     expect(learn).toContain('id="w-per-layer"')
-    expect(learn).toContain('The small upper layers help the search cross the map quickly')
-    expect(learn).toContain('On the bottom layer, explore more than one promising route')
+    expect(learn).toContain('best-so-far has capacity 1 on every upper layer')
+    expect(learn).toContain('best-so-far capacity is called efSearch')
+    expect(learn).toContain('not the total nodes visited')
+    expect(learn).toContain('farther than the farthest kept node')
 
     const state = script(seededState(), [{ t: 'search', at: [500, 320] }])
     for (const base of [false, true]) {
@@ -372,11 +378,10 @@ describe('render smoke', () => {
     expect(html).toContain('then place a target on the graph')
   })
 
-  it('offers a separate guided routes exercise without replacing general resume', () => {
+  it('offers the guided playground search after the search lesson', () => {
     const html = render(initialState(), <ExplanationPage onOpenPlayground={() => {}} onStartFirstSearch={() => {}} initialSection="chapter-search" />)
-    expect(html).toContain('Watch one search in Playground')
-    expect(html).toContain('Start guided search')
-    expect(html).toContain('Try it in Playground')
+    expect(html).toContain('See it live in Playground')
+    expect(html.indexOf('See it live in Playground')).toBeGreaterThan(html.indexOf('id="w-per-layer"'))
   })
 
   it('introduces the graph with a concrete similarity example before search', () => {
