@@ -26,10 +26,9 @@ export function ProblemChapter() {
         >
           <b>The slow, exact way</b>
           <p>
-            Convert each product into an embedding vector. Compare the query
-            vector with every product vector, calculate their similarity
-            scores, sort the results, and return the top <b>k</b> most
-            similar products.
+            Compare the query with every product, sort all the results, and
+            return the closest <b>k</b>. This is accurate, but the work grows
+            with every product added to the store.
           </p>
         </div>
         <div
@@ -38,10 +37,9 @@ export function ProblemChapter() {
         >
           <b>The HNSW way</b>
           <p>
-            It connects similar vectors with edges and builds a few smaller
-            layers on top. These layers help the search quickly reach the
-            right area. From there, it checks nearby vectors more closely and
-            returns the top <b>k</b> closest matches.
+            Use graph connections and small upper layers to reach a promising
+            area quickly. Then check nearby items more closely and return the
+            top <b>k</b> matches.
           </p>
         </div>
         <div className="visual-pair">

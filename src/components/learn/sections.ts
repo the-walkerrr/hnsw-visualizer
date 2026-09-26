@@ -2,6 +2,7 @@ import { LISTINGS } from "../../hnsw/pseudocode";
 import { CONTROL_GUIDES } from "../../lessons/controlGuides";
 
 export const SECTION_NAV = [
+  { id: "chapter-prerequisites", number: "00", label: "Prerequisites" },
   { id: "chapter-problem", number: "01", label: "The need" },
   { id: "chapter-search", number: "02", label: "Search" },
   { id: "chapter-insert", number: "03", label: "Insert" },

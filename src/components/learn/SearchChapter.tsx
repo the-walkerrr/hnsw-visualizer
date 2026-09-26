@@ -235,14 +235,10 @@ export function SearchChapter({
           <p className="section-kicker">Search</p>
           <h2>Most important piece HNSW</h2>
           <p>
-            We represent each product as an embedding vector, such as [0.65,
-            0.23, …]. To find similar products, we compare their vectors using
-            measures such as Euclidean distance or cosine similarity. For
-            simplicity, this explanation uses Euclidean distance. Assume we
-            already have a graph whose nodes represent products and whose edges
-            connect them. Nearby products tend to form clusters, with a few
-            edges linking one cluster to another. Our goal is to find the
-            cluster closest to the query and return the k closest products.
+            Assume the HNSW index is already built. Search begins on a small
+            upper layer, moves toward the query, and descends until it reaches
+            the full bottom layer. The goal is to return the k closest products
+            without checking every product in the index.
           </p>
         </div>
       </header>
@@ -250,11 +246,11 @@ export function SearchChapter({
       <div className="lesson-block">
         <h3>1. Place the query in the graph’s vector space</h3>
         <p>
-          Convert the query product into an embedding vector and place it in the
-          graph’s vector space. Here are 20 products from our imagined graph,
-          scattered across four loose clusters, along with an example query near
-          one of them. The cross marks the query’s position; it is a reference
-          for measuring distance, not a product inserted into the graph.
+          Place the query vector in the same vector space as the indexed
+          products. Here are 20 products from our imagined graph, scattered
+          across four loose clusters, along with an example query near one of
+          them. The cross marks the query’s position; it is a reference for
+          measuring distance, not a product inserted into the graph.
         </p>
         <ProductGraphVisual />
       </div>
@@ -415,10 +411,9 @@ export function SearchChapter({
       <div id="ef-search-explained" className="lesson-block">
         <h3>6. How Big Should the Best-So-Far Bucket Be?</h3>
         <p>
-          The best-so-far capacity is called efSearch We choose <b>efSearch</b>{" "}
-          based on <b>recall</b> — how many of the true nearest neighbors HNSW
-          manages to find. Start with a small efSearch, then gradually increase
-          it and measure recall.
+          The best-so-far capacity is called efSearch. Choose <b>efSearch</b> by
+          measuring recall on representative queries. Start with a small value,
+          then gradually increase it and measure again.
           <br /> <br />
           For example: <br />
           efSearch = 10 → recall 80% <br /> efSearch = 20 → recall 92% <br />
@@ -431,13 +426,19 @@ export function SearchChapter({
           efSearch where recall is already good enough and has mostly stopped
           improving.
         </p>
-        <p></p>
+        <p className="note accent">
+          <b>Upper layers use efSearch = 1.</b> They only need to find one good
+          entry point for the next layer, so keeping a single best candidate
+          makes traversal fast. The larger efSearch value is used on the bottom
+          layer, where the search gathers the final nearest results.
+        </p>
       </div>
 
       <div id="w-per-layer" className="lesson-block">
         <h3>7. Repeat the idea across more layers</h3>
         <p>
-          The index layers keeps on increasing when the data points increase.
+          As we add more data points, the HNSW index may grow taller by adding
+          more layers.
         </p>
         <SearchLayerSizesVisual />
         {/*<p className="search-source">

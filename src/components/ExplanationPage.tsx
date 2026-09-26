@@ -12,6 +12,7 @@ import {
   type SectionId,
 } from "./learn/sections";
 import { SectionPager } from "./learn/SectionPager";
+import { PrerequisitesChapter } from "./learn/PrerequisitesChapter";
 import { ProblemChapter } from "./learn/ProblemChapter";
 import { SearchChapter } from "./learn/SearchChapter";
 import { InsertChapter } from "./learn/InsertChapter";
@@ -41,7 +42,7 @@ export function ExplanationPage({
     } catch {
       /* Storage/hash access is optional. */
     }
-    return "chapter-problem";
+    return "chapter-prerequisites";
   });
   const [returnPoint, setReturnPoint] = useState<LearnReturnPoint | null>(
     readLearnReturnPoint,
@@ -142,6 +143,7 @@ export function ExplanationPage({
           </nav>
 
           <div className="guide-content">
+            {section === "chapter-prerequisites" && <PrerequisitesChapter />}
             {section === "chapter-problem" && <ProblemChapter />}
             {section === "chapter-search" && (
               <SearchChapter onStartFirstSearch={onStartFirstSearch} />

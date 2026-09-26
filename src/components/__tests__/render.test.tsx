@@ -179,16 +179,16 @@ describe('render smoke', () => {
   })
 
   it('presents one section at a time, in beginner-to-advanced order, with prev/next paging', () => {
-    const order = ['chapter-problem', 'chapter-search', 'chapter-insert', 'chapter-delete', 'chapter-practice', 'advanced-learning']
+    const order = ['chapter-prerequisites', 'chapter-problem', 'chapter-search', 'chapter-insert', 'chapter-delete', 'chapter-practice', 'advanced-learning']
     const first = render(initialState(), <ExplanationPage onOpenPlayground={() => {}} />)
     for (let i = 1; i < order.length; i++) expect(first.indexOf(`href="#${order[i - 1]}"`)).toBeLessThan(first.indexOf(`href="#${order[i]}"`))
     expect(first.match(/class="guide-chapter/g)).toHaveLength(1)
-    expect(first).toContain('id="chapter-problem"')
+    expect(first).toContain('id="chapter-prerequisites"')
+    expect(first).not.toContain('id="chapter-problem"')
     expect(first).not.toContain('id="chapter-search"')
-    expect(first).toContain('Part 01 of 05')
     // First section: only a "next" link in the pager, no "previous".
     expect(first).toContain('class="section-pager"')
-    expect(first).toContain('href="#chapter-search"')
+    expect(first).toContain('href="#chapter-problem"')
 
     const middle = render(initialState(), <ExplanationPage onOpenPlayground={() => {}} initialSection="chapter-insert" />)
     expect(middle.match(/class="guide-chapter/g)).toHaveLength(1)
@@ -278,10 +278,10 @@ describe('render smoke', () => {
   it('explains per-layer bucket capacities and retains playground queue guidance', () => {
     const learn = render(initialState(), <ExplanationPage onOpenPlayground={() => {}} initialSection="chapter-search" />)
     expect(learn).toContain('id="w-per-layer"')
-    expect(learn).toContain('Upper layers keep one best node')
     expect(learn).toContain('Four graph layers')
     expect(learn).toContain('bottom has fifty nodes')
     expect(learn).toContain('best-so-far capacity is called efSearch')
+    expect(learn).toContain('Upper layers use efSearch = 1')
     expect(learn).toContain('farther than the farthest kept node')
 
     const state = script(seededState(), [{ t: 'search', at: [500, 320] }])
@@ -385,13 +385,28 @@ describe('render smoke', () => {
     expect(html.indexOf('See it live in Playground')).toBeGreaterThan(html.indexOf('id="w-per-layer"'))
   })
 
-  it('introduces the graph with a concrete similarity example before search', () => {
-    const html = render(initialState(), <ExplanationPage onOpenPlayground={() => {}} />)
-    expect(html).toContain('Imagine every song in a music app as a dot')
-    expect(html).toContain('Songs that sound similar are placed close together')
-    expect(html).toContain('The slow, exact way')
-    expect(html).toContain('role="img" aria-labelledby="graph-search-title graph-search-desc"')
-    expect(html).toContain('class="scan-list"')
+  it('introduces prerequisites before the need and search sections', () => {
+    const prerequisites = render(initialState(), <ExplanationPage onOpenPlayground={() => {}} />)
+    for (const term of ['Embedding (vector)', 'Node', 'Edge and neighbor', 'Graph', 'Query', 'Distance or similarity score', 'Recall']) {
+      expect(prerequisites).toContain(term)
+    }
+    for (const removed of ['Cluster', 'Nearest neighbors and k', 'Candidate', 'Exact search versus approximate search']) {
+      expect(prerequisites).not.toContain(removed)
+    }
+    expect(prerequisites.match(/class="prerequisite-visual/g)).toHaveLength(7)
+    expect(prerequisites).toContain('The orange cross in the diagram marks the query')
+    expect(prerequisites).toContain('test data that has known inputs and expected outputs')
+    expect(prerequisites).not.toContain('class="prerequisite-node-label"')
+    expect(prerequisites).not.toContain('>query</text>')
+    expect(prerequisites).toContain('href="#chapter-problem"')
+
+    const problem = render(initialState(), <ExplanationPage onOpenPlayground={() => {}} initialSection="chapter-problem" />)
+    expect(problem).not.toContain('Embedding (vector)')
+    expect(problem).not.toContain('Distance or similarity score')
+
+    const search = render(initialState(), <ExplanationPage onOpenPlayground={() => {}} initialSection="chapter-search" />)
+    expect(search).not.toContain('Smaller Euclidean distance means closer')
+    expect(search).not.toContain('The share of the true nearest neighbors')
   })
 
   it('uses mobile-friendly homepage actions and discloses the full playground width requirement', () => {
