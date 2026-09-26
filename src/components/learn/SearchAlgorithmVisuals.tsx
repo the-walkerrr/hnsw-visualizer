@@ -1,5 +1,5 @@
 import { useId, useState } from "react";
-import { edgesOnLayer } from "../../hnsw/graph";
+import { edgesOnLayer, neighborsAt } from "../../hnsw/graph";
 import type { Step } from "../../hnsw/types";
 import {
   SEARCH_LESSON_GRAPH as graph,
@@ -278,7 +278,7 @@ export function SearchLayersWalkthrough() {
         setStep={setStep}
         name="Layer walkthrough"
       />
-      <figcaption>
+      {/*<figcaption>
         Dotted links connect the same product across layers.{" "}
         {step === 2
           ? "The green link carries the search down through P. "
@@ -287,7 +287,7 @@ export function SearchLayersWalkthrough() {
             : ""}
         A larger upper layer is searched by following its edges toward closer
         nodes, rather than scanning every landmark.
-      </figcaption>
+      </figcaption>*/}
     </Visual>
   );
 }
@@ -301,11 +301,20 @@ function frameCopy(frame: Step, previous?: Step) {
         "Start with P in both buckets",
         "P is the best node we know here, and its neighbors still need checking. Best-so-far has three slots; to-check starts with one pending node.",
       ];
-    case "s9":
+    case "s9": {
+      const current = frame.vis.current!;
+      const unseenNeighbors = neighborsAt(
+        graph,
+        current,
+        frame.vis.layer ?? 0,
+      ).filter((neighbor) => !frame.vis.visited.includes(neighbor));
       return [
-        `Explore ${label(frame.vis.current!)}`,
-        `Take ${label(frame.vis.current!)} out of to-check because it is the closest pending node. Check its previously unseen neighbors next. Exploring a node does not remove it from best-so-far.`,
+        `Explore ${label(current)}`,
+        unseenNeighbors.length === 0
+          ? `Take ${label(current)} out of to-check because it is the closest pending node. All of its neighbors have already been seen in this layer, so skip them instead of checking the same nodes again. The buckets do not change.`
+          : `Take ${label(current)} out of to-check because it is the closest pending node. Check its previously unseen neighbors next.`,
       ];
+    }
     case "s13": {
       const evicted = previousBest.find((n) => !frame.vis.dynamic.includes(n));
       return [
@@ -353,18 +362,36 @@ export function SearchBucketsWalkthrough() {
     frame.line === "s12" || frame.line === "s13"
       ? frame.vis.considering
       : frame.vis.current;
+  const expanding = frame.vis.current;
+  const considering =
+    frame.line === "s12" || frame.line === "s13"
+      ? frame.vis.considering
+      : undefined;
   const showFullGraph = focus !== undefined && focus < 15;
   return (
-    <Visual title="Follow the buckets · k = 2 · best-so-far capacity = 3">
+    <Visual title="k (requested no. of results) = 2 · best-so-far capacity = 3">
       <div className="search-step-copy" aria-live="polite">
         <h4>{title}</h4>
         <p>{explanation}</p>
+      </div>
+      <div className="search-expansion-context" aria-live="polite">
+        {expanding === undefined ? (
+          <span>No node selected yet</span>
+        ) : (
+          <>
+            <span>Checking neighbors of</span>
+            <b>{label(expanding)}</b>
+            {considering !== undefined && (
+              <small>Now evaluating {label(considering)}</small>
+            )}
+          </>
+        )}
       </div>
       <svg
         className={`search-lesson-graph bucket-graph${showFullGraph ? "" : " closeup"}`}
         viewBox={showFullGraph ? "0 0 600 345" : "330 175 245 140"}
         role="img"
-        aria-label={`${title}. ${showFullGraph ? "Zoomed out to show the distant neighbor in the full graph." : "A close-up of P, Q, R, S, and T in the bottom-right cluster of the same graph."}`}
+        aria-label={`${title}. ${expanding !== undefined ? `Checking neighbors of ${label(expanding)}. ` : ""}${considering !== undefined ? `Now evaluating ${label(considering)}. ` : ""}${showFullGraph ? "Zoomed out to show the distant neighbor in the full graph." : "A close-up of P, Q, R, S, and T in the bottom-right cluster of the same graph."}`}
       >
         <defs>
           <clipPath id={clipId}>
@@ -388,10 +415,10 @@ export function SearchBucketsWalkthrough() {
         </g>
       </svg>
       <p className="search-zoom-note">
+        *
         {showFullGraph
           ? "Zoomed out to show the distant neighbor."
           : "Close-up of the same bottom-right cluster."}{" "}
-        Green = {returned ? "returned results" : "kept"}; ring = current action.
         Distances below are to the query.
       </p>
       <div className="search-buckets" aria-live="polite">
@@ -454,69 +481,205 @@ export function SearchBucketsWalkthrough() {
         setStep={setStep}
         name="Bucket walkthrough"
       />
-      <figcaption>
-        This walkthrough runs the actual search on the illustrated graph.
-        Repeated visits are skipped; each new neighbor’s distance is checked
-        once per layer. Displayed distances are rounded.
-      </figcaption>
     </Visual>
   );
 }
 
 export function SearchLayerSizesVisual() {
+  const bottomNodes: Array<readonly [number, number]> = ([
+    [100, 335],
+    [125, 320],
+    [145, 342],
+    [170, 326],
+    [190, 350],
+    [115, 360],
+    [142, 370],
+    [165, 358],
+    [200, 330],
+    [215, 365],
+    [175, 378],
+    [128, 385],
+    [205, 392],
+    [230, 380],
+    [255, 394],
+    [280, 382],
+    [305, 400],
+    [215, 416],
+    [240, 426],
+    [270, 418],
+    [295, 432],
+    [320, 414],
+    [245, 405],
+    [285, 405],
+    [325, 388],
+    [330, 335],
+    [355, 320],
+    [380, 342],
+    [405, 326],
+    [430, 348],
+    [445, 330],
+    [345, 360],
+    [370, 372],
+    [400, 360],
+    [425, 378],
+    [455, 365],
+    [390, 385],
+    [435, 395],
+    [460, 382],
+    [485, 400],
+    [510, 385],
+    [535, 405],
+    [560, 390],
+    [450, 420],
+    [475, 430],
+    [505, 418],
+    [530, 432],
+    [555, 420],
+    [490, 440],
+    [570, 438],
+  ] as const).map(([x, y]) => [x, 342 + Math.round((y - 320) / 2)]);
+  const bottomEdges: Array<readonly [number, number]> = [];
+
+  let clusterStart = 0;
+  for (const clusterSize of [12, 13, 12, 13]) {
+    for (let index = 0; index < clusterSize - 1; index += 1) {
+      bottomEdges.push([clusterStart + index, clusterStart + index + 1]);
+      if (index % 2 === 0 && index < clusterSize - 2) {
+        bottomEdges.push([clusterStart + index, clusterStart + index + 2]);
+      }
+    }
+    clusterStart += clusterSize;
+  }
+  bottomEdges.push([8, 25], [9, 12], [21, 37], [35, 38]);
+
+  const layers = [
+    {
+      name: "Layer 3",
+      plane: "M55 15H555L590 95H90Z",
+      nodes: [
+        [235, 52],
+        [300, 34],
+        [365, 57],
+        [425, 38],
+      ],
+      edges: [
+        [0, 1],
+        [1, 2],
+        [2, 3],
+        [0, 2],
+        [1, 3],
+      ],
+    },
+    {
+      name: "Layer 2",
+      plane: "M55 120H555L590 200H90Z",
+      nodes: [
+        [180, 160],
+        [208, 143],
+        [235, 174],
+        [270, 155],
+        [365, 155],
+        [395, 138],
+        [430, 167],
+        [468, 149],
+      ],
+      edges: [
+        [0, 1],
+        [1, 2],
+        [2, 3],
+        [0, 2],
+        [1, 3],
+        [4, 5],
+        [5, 6],
+        [6, 7],
+        [4, 6],
+        [5, 7],
+        [3, 4],
+      ],
+    },
+    {
+      name: "Layer 1",
+      plane: "M55 225H555L590 305H90Z",
+      nodes: [
+        [140, 265],
+        [170, 248],
+        [195, 275],
+        [220, 257],
+        [180, 290],
+        [300, 260],
+        [330, 243],
+        [355, 275],
+        [385, 253],
+        [340, 297],
+        [445, 265],
+        [475, 243],
+        [500, 280],
+        [530, 260],
+        [480, 298],
+      ],
+      edges: [
+        [0, 1],
+        [1, 2],
+        [2, 3],
+        [3, 0],
+        [2, 4],
+        [0, 2],
+        [5, 6],
+        [6, 7],
+        [7, 8],
+        [8, 5],
+        [7, 9],
+        [5, 7],
+        [10, 11],
+        [11, 12],
+        [12, 13],
+        [13, 10],
+        [12, 14],
+        [10, 12],
+        [3, 5],
+        [8, 10],
+      ],
+    },
+    {
+      name: "Layer 0",
+      plane: "M55 330H555L590 410H90Z",
+      nodes: bottomNodes,
+      edges: bottomEdges,
+    },
+  ] as const;
+
   return (
-    <Visual title="More layers, the same two jobs">
-      <div className="search-layer-sizes">
-        {[
-          {
-            name: "Highest layer",
-            detail: "A few landmarks",
-            dots: ["A", "P"],
-            capacity: "1 slot",
-            note: "Find a direction",
-          },
-          {
-            name: "Next layer",
-            detail: "More landmarks",
-            dots: ["A", "F", "K", "P"],
-            capacity: "1 slot",
-            note: "Refine the starting point",
-          },
-          {
-            name: "Bottom layer",
-            detail: "Every product",
-            dots: ["P", "Q", "R", "S", "T"],
-            capacity: "efSearch slots",
-            note: "Explore, then return k",
-          },
-        ].map((row, i) => (
-          <div className="search-layer-size-row" key={row.name}>
-            <div>
-              <b>{row.name}</b>
-              <small>{row.detail}</small>
-            </div>
-            <div
-              className="search-layer-mini"
-              aria-label={`${row.dots.join(", ")}${i === 2 ? ", and all other products" : ""}`}
-            >
-              {row.dots.map((n) => (
-                <span key={n} className={n === "P" ? "selected" : ""}>
-                  {n}
-                </span>
-              ))}
-              {i === 2 && <small>…</small>}
-            </div>
-            <div>
-              <b>{row.capacity}</b>
-              <small>{row.note}</small>
-            </div>
-          </div>
+    <Visual title="The same graph, from sparse to dense">
+      <svg
+        className="search-layer-stack"
+        viewBox="0 0 650 455"
+        role="img"
+        aria-label="Four graph layers of equal size, made of irregular clusters with equally sized nodes. The top has four nodes, the next layers have eight and fifteen nodes, and the bottom has fifty nodes."
+      >
+        {layers.map((layer) => (
+          <g key={layer.name}>
+            <path className="layer-plane" d={layer.plane} />
+            <g className="visual-edge">
+              {layer.edges.map(([from, to]) => {
+                const start = layer.nodes[from]!;
+                const end = layer.nodes[to]!;
+                return (
+                  <line
+                    key={`${from}-${to}`}
+                    x1={start[0]}
+                    y1={start[1]}
+                    x2={end[0]}
+                    y2={end[1]}
+                  />
+                );
+              })}
+            </g>
+            {layer.nodes.map(([x, y]) => (
+              <circle cx={x} cy={y} key={`${x}-${y}`} r="4" />
+            ))}
+          </g>
         ))}
-      </div>
-      <figcaption>
-        Best-so-far capacity is shown on the right. At each descent, the closest
-        node found becomes the next layer’s entry point and seeds fresh buckets.
-      </figcaption>
+      </svg>
     </Visual>
   );
 }

@@ -5,6 +5,220 @@ import {
   SearchLayerSizesVisual,
 } from "./SearchAlgorithmVisuals";
 
+type AdmissionNode = {
+  id: string;
+  distance: string;
+  isNew?: boolean;
+};
+
+type AdmissionState = {
+  best: Array<AdmissionNode | null>;
+  pending: Array<AdmissionNode | null>;
+};
+
+const admissionExamples: Array<{
+  newNode?: AdmissionNode;
+  before: AdmissionState;
+  after: AdmissionState;
+  label: string;
+}> = [
+  {
+    newNode: { id: "N", distance: "4.2", isNew: true },
+    before: {
+      best: [
+        { id: "A", distance: "1.2" },
+        { id: "B", distance: "2.4" },
+        { id: "C", distance: "3.1" },
+        null,
+      ],
+      pending: [
+        { id: "B", distance: "2.4" },
+        { id: "C", distance: "3.1" },
+        null,
+        null,
+      ],
+    },
+    after: {
+      best: [
+        { id: "A", distance: "1.2" },
+        { id: "B", distance: "2.4" },
+        { id: "C", distance: "3.1" },
+        { id: "N", distance: "4.2", isNew: true },
+      ],
+      pending: [
+        { id: "B", distance: "2.4" },
+        { id: "C", distance: "3.1" },
+        { id: "N", distance: "4.2", isNew: true },
+        null,
+      ],
+    },
+    label: "The new node fills the open best-so-far slot and enters to-check",
+  },
+  {
+    newNode: { id: "N", distance: "3.7", isNew: true },
+    before: {
+      best: [
+        { id: "A", distance: "1.2" },
+        { id: "B", distance: "2.4" },
+        { id: "C", distance: "3.1" },
+        { id: "D", distance: "5.6" },
+      ],
+      pending: [
+        { id: "C", distance: "3.1" },
+        { id: "D", distance: "5.6" },
+        null,
+        null,
+      ],
+    },
+    after: {
+      best: [
+        { id: "A", distance: "1.2" },
+        { id: "B", distance: "2.4" },
+        { id: "C", distance: "3.1" },
+        { id: "N", distance: "3.7", isNew: true },
+      ],
+      pending: [
+        { id: "C", distance: "3.1" },
+        { id: "N", distance: "3.7", isNew: true },
+        { id: "D", distance: "5.6" },
+        null,
+      ],
+    },
+    label:
+      "The closer new node replaces the farthest best-so-far node and enters to-check",
+  },
+  {
+    newNode: { id: "N", distance: "6.8", isNew: true },
+    before: {
+      best: [
+        { id: "A", distance: "1.2" },
+        { id: "B", distance: "2.4" },
+        { id: "C", distance: "3.1" },
+        { id: "D", distance: "5.6" },
+      ],
+      pending: [
+        { id: "C", distance: "3.1" },
+        { id: "D", distance: "5.6" },
+        null,
+        null,
+      ],
+    },
+    after: {
+      best: [
+        { id: "A", distance: "1.2" },
+        { id: "B", distance: "2.4" },
+        { id: "C", distance: "3.1" },
+        { id: "D", distance: "5.6" },
+      ],
+      pending: [
+        { id: "C", distance: "3.1" },
+        { id: "D", distance: "5.6" },
+        null,
+        null,
+      ],
+    },
+    label: "The farther new node is rejected and both buckets stay unchanged",
+  },
+  {
+    before: {
+      best: [
+        { id: "A", distance: "1.2" },
+        { id: "B", distance: "2.4" },
+        { id: "C", distance: "3.1" },
+        { id: "D", distance: "5.0" },
+      ],
+      pending: [
+        { id: "Q", distance: "5.3" },
+        { id: "R", distance: "6.0" },
+        null,
+        null,
+      ],
+    },
+    after: {
+      best: [
+        { id: "A", distance: "1.2" },
+        { id: "B", distance: "2.4" },
+        { id: "C", distance: "3.1" },
+        { id: "D", distance: "5.0" },
+      ],
+      pending: [null, null, null, null],
+    },
+    label:
+      "The closest pending node is farther than the farthest kept node, so exploration stops and to-check is cleared",
+  },
+];
+
+function AdmissionSlots({ slots }: { slots: Array<AdmissionNode | null> }) {
+  return (
+    <div className="admission-slots">
+      {slots.map((node, index) => (
+        <span
+          className={`admission-slot${node?.isNew ? " new" : ""}${
+            node ? "" : " vacant"
+          }`}
+          key={`${node?.id ?? "empty"}-${index}`}
+        >
+          {node && (
+            <>
+              <b>{node.id}</b>
+              <small>{node.distance}</small>
+            </>
+          )}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function AdmissionBuckets({ state }: { state: AdmissionState }) {
+  return (
+    <div className="admission-buckets">
+      <div className="admission-bucket-row">
+        <span>Best-so-far</span>
+        <AdmissionSlots slots={state.best} />
+      </div>
+      <div className="admission-bucket-row">
+        <span>To-check</span>
+        <AdmissionSlots slots={state.pending} />
+      </div>
+    </div>
+  );
+}
+
+function AdmissionRuleVisual({ index }: { index: number }) {
+  const example = admissionExamples[index];
+
+  return (
+    <div
+      className="admission-rule-visual"
+      role="img"
+      aria-label={example.label}
+    >
+      <div className="admission-phase before">
+        <strong>Before</strong>
+        {example.newNode ? (
+          <div className="admission-before-layout">
+            <div className="admission-new-node">
+              <span>New node</span>
+              <AdmissionSlots slots={[example.newNode]} />
+            </div>
+            <AdmissionBuckets state={example.before} />
+          </div>
+        ) : (
+          <AdmissionBuckets state={example.before} />
+        )}
+      </div>
+      <span className="admission-arrow" aria-hidden="true">
+        →
+      </span>
+      <div className="admission-phase after">
+        <strong>After</strong>
+        <AdmissionBuckets state={example.after} />
+      </div>
+    </div>
+  );
+}
+
 export function SearchChapter({
   onStartFirstSearch,
 }: {
@@ -19,7 +233,7 @@ export function SearchChapter({
         <span>02</span>
         <div>
           <p className="section-kicker">Search</p>
-          <h2>Find nearby products without checking everything</h2>
+          <h2>Most important piece HNSW</h2>
           <p>
             We represent each product as an embedding vector, such as [0.65,
             0.23, …]. To find similar products, we compare their vectors using
@@ -104,7 +318,6 @@ export function SearchChapter({
         <p>
           But if we keep checking every neighbor and every neighbor’s neighbors,
           we could visit the entire graph. That loses the efficiency we wanted.
-          <b> Where do we stop, and what do we give up when we stop sooner?</b>
         </p>
         <div className="search-tradeoff" aria-label="Search effort tradeoff">
           <div>
@@ -119,7 +332,8 @@ export function SearchChapter({
             <p>
               Keep more alternatives and give them a chance. This usually
               improves the chance of finding the nearest products, at the cost
-              of more work.
+              of more work. And also after a certain point, we might not get
+              closer nodes than the existing nodes.
             </p>
           </div>
         </div>
@@ -151,11 +365,9 @@ export function SearchChapter({
         </dl>
         <p className="search-after-card">
           Put our starting node P into both buckets. When we take a node from
-          to-check, remove it from that bucket and inspect its neighbors. It can
-          stay in best-so-far: finishing its exploration does not make it a
-          worse answer. Keep track of which nodes have already been seen so
-          loops in the graph do not make us check the same node again within
-          this layer.
+          to-check, remove it from that bucket and inspect its neighbors. Keep
+          track of which nodes have already been seen so loops in the graph do
+          not make us check the same node again within this layer.
         </p>
         <p>
           For each previously unseen neighbor, measure its distance to the
@@ -166,6 +378,7 @@ export function SearchChapter({
             <b>If best-so-far has room,</b> add the neighbor to both buckets.
             Even a farther node may be worth exploring while there is room for
             alternatives.
+            <AdmissionRuleVisual index={0} />
           </li>
           <li>
             <b>
@@ -174,104 +387,60 @@ export function SearchChapter({
             </b>{" "}
             add the new node to both buckets and remove that farthest member
             from best-so-far.
+            <AdmissionRuleVisual index={1} />
           </li>
           <li>
             <b>Otherwise, skip the new node.</b> It enters neither bucket, so we
             will not follow its connections in this search.
+            <AdmissionRuleVisual index={2} />
+          </li>
+          <li>
+            <p>
+              Before exploring the next pending node from to-check bucket,
+              compare it with the farthest node in best-so-far. If it is farther
+              than the farthest kept node, stop. Every other pending node is at
+              least as far away.
+            </p>
+            <AdmissionRuleVisual index={3} />
           </li>
         </ol>
         <p>
           Removing a node from best-so-far does not automatically remove its
           pending entry from to-check. One bucket tracks possible answers; the
-          other tracks unfinished exploration. Watch them separate as better
-          nodes arrive below.
+          other tracks unfinished exploration.
         </p>
         <SearchBucketsWalkthrough />
       </div>
 
       <div id="ef-search-explained" className="lesson-block">
-        <h3>6. Configure the room for alternatives</h3>
+        <h3>6. How Big Should the Best-So-Far Bucket Be?</h3>
         <p>
-          The bottom layer’s <b>best-so-far capacity is called efSearch</b>. It
-          is separate from k: k says how many answers to return; efSearch says
-          how many promising nodes to retain during the search. Our walkthrough
-          keeps three candidates but returns only the closest two. Choose a
-          capacity of at least k; this visualizer enforces that minimum.
+          The best-so-far capacity is called efSearch We choose <b>efSearch</b>{" "}
+          based on <b>recall</b> — how many of the true nearest neighbors HNSW
+          manages to find. Start with a small efSearch, then gradually increase
+          it and measure recall.
+          <br /> <br />
+          For example: <br />
+          efSearch = 10 → recall 80% <br /> efSearch = 20 → recall 92% <br />
+          efSearch = 40 → recall 98%
+          <br /> efSearch = 80 → recall 98% <br /> <br />
+          At first, increasing efSearch usually improves recall because HNSW
+          explores more candidates. But after some point, recall stops
+          improving. Increasing efSearch further only makes the search slower
+          without finding better results. So the goal is to choose the smallest
+          efSearch where recall is already good enough and has mostly stopped
+          improving.
         </p>
-        <p>
-          A small capacity fills quickly, so a new node must be quite close to
-          earn a place. That prunes exploration sooner. With more slots, farther
-          candidates can remain useful routes to undiscovered neighbors. The
-          search typically does more distance checks, but has a better chance of
-          finding the true nearest products. Increasing the capacity is not a
-          promise that every query’s answer will improve.
-        </p>
-        <p>
-          This number limits best-so-far, <b>not the total nodes visited</b> or
-          the size of to-check. Slots can be reused many times as closer nodes
-          replace farther ones. To-check can also retain candidates that have
-          since left best-so-far.
-        </p>
-        <h3 className="lesson-subheading">The stopping comparison</h3>
-        <p>
-          Before exploring the next pending node, compare its distance with the
-          farthest node in best-so-far. If the closest pending node is already
-          <b> farther than the farthest kept node</b>, stop. All other pending
-          nodes are at least as far away, so none of those nodes themselves
-          would improve our kept set. A tie does not trigger this stopping rule.
-          Also stop if to-check becomes empty after finishing the current node’s
-          neighbors.
-        </p>
-        <div
-          className="search-stop-comparison"
-          aria-label="Example stopping comparison"
-        >
-          <div>
-            <small>Closest pending</small>
-            <b>Q · 5.3</b>
-          </div>
-          <span aria-hidden="true">&gt;</span>
-          <div>
-            <small>Farthest kept</small>
-            <b>S · 5.0</b>
-          </div>
-          <p>Stop expanding. Return the closest k from best-so-far.</p>
-        </div>
-        <p>
-          Notice what this does <em>not</em> prove: an unvisited neighbor beyond
-          a farther pending node could still be closer to the query. The rule
-          saves work by deciding those routes are no longer promising enough.
-          This is why HNSW gives <b>approximate nearest neighbors</b>, and why
-          allowing a larger best-so-far bucket can help.
-        </p>
+        <p></p>
       </div>
 
       <div id="w-per-layer" className="lesson-block">
         <h3>7. Repeat the idea across more layers</h3>
         <p>
-          A huge graph can have several upper layers, with fewer nodes as we go
-          up. Start at the highest layer’s stored entry point, follow
-          connections toward the query, then descend using the closest node
-          found. Repeat until reaching the bottom layer, where every product is
-          available.
+          The index layers keeps on increasing when the data points increase.
         </p>
         <SearchLayerSizesVisual />
-        <p>
-          For a standard HNSW query,{" "}
-          <b>best-so-far has capacity 1 on every upper layer</b>. We only need
-          one useful entry point for the next layer. Keeping just the closest
-          node found makes these passes fast: accept a neighbor only if it
-          improves the current best distance, and stop when no pending node can
-          improve that position. One slot does not mean one distance
-          calculation; the search can follow several improving steps.
-        </p>
-        <p>
-          At the bottom, use the larger efSearch capacity. This is where we
-          spend the effort to retain alternative routes and collect k good
-          results. Each layer starts fresh buckets seeded with the node carried
-          down; the query stays the same throughout the search.
-        </p>
-        <p className="search-source">
+        {/*<p className="search-source">
           Algorithm reference:{" "}
           <a
             href="https://arxiv.org/abs/1603.09320"
@@ -281,7 +450,7 @@ export function SearchChapter({
             Malkov &amp; Yashunin’s HNSW paper
           </a>
           , SEARCH-LAYER and K-NN-SEARCH.
-        </p>
+        </p>*/}
         {onStartFirstSearch && (
           <button className="button secondary" onClick={onStartFirstSearch}>
             See it live in Playground →

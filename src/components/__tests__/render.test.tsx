@@ -278,9 +278,10 @@ describe('render smoke', () => {
   it('explains per-layer bucket capacities and retains playground queue guidance', () => {
     const learn = render(initialState(), <ExplanationPage onOpenPlayground={() => {}} initialSection="chapter-search" />)
     expect(learn).toContain('id="w-per-layer"')
-    expect(learn).toContain('best-so-far has capacity 1 on every upper layer')
+    expect(learn).toContain('Upper layers keep one best node')
+    expect(learn).toContain('Four graph layers')
+    expect(learn).toContain('bottom has fifty nodes')
     expect(learn).toContain('best-so-far capacity is called efSearch')
-    expect(learn).toContain('not the total nodes visited')
     expect(learn).toContain('farther than the farthest kept node')
 
     const state = script(seededState(), [{ t: 'search', at: [500, 320] }])
